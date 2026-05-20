@@ -1,0 +1,31 @@
+# Modelos y pesos pesados (evitar subir gigabytes a GitHub)
+models/
+*.pt
+*.pth
+
+# Carpetas de datos de entrada y salidas locales
+output/
+GIRASOL/
+MAIZ/
+PALMA/
+LOTE 2 LECHUGA CORTE-MASCARA 2/
+_ortho_resampled.tif
+
+# Documentos locales de referencia (opcional, pero pesan y no son código)
+*.docx
+*.pdf
+
+# Compilación y entornos virtuales
+build/
+dist/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Historial de R y temporales
+.Rhistory
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db

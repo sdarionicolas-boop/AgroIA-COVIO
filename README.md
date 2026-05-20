@@ -1,0 +1,118 @@
+# 🌱 PlantDetector
+
+**Detección automática y análisis espacial de densidad de plantas**  
+Desarrollado por Darío Sánchez Leguizamón — CLAP 2026
+
+---
+
+## ¿Qué hace?
+
+PlantDetector toma un ortomosaico RGB de dron (GeoTIFF) y produce:
+
+- **Conteo de plantas** individuales detectadas
+- **Mapa de zonificación productiva** (alta / media / baja densidad)
+- **GeoPackage (.gpkg)** con la grilla de densidades (integrable en QGIS / monitores agrícolas)
+- **CSV georreferenciado** con coordenadas UTM de cada planta
+
+Pipeline interno: SAM (pseudo-etiquetado) → YOLOv8m (detección) → Filtros agronómicos → SIG
+
+---
+
+## Instalación (primera vez)
+
+### Opción A: Ejecutable (recomendada para usuarios no técnicos)
+
+1. Descomprimí la carpeta `PlantDetector/`
+2. Hacé doble clic en `PlantDetector.exe`
+3. La primera vez, la app descargará automáticamente el modelo SAM (~2.4 GB)
+
+### Opción B: Desde código fuente (para desarrolladores)
+
+```bash
+# Clonar / descomprimir el proyecto
+cd PlantDetector
+
+# Crear entorno virtual (recomendado)
+python -m venv venv
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # Linux/Mac
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Lanzar la app
+python app.py
+```
+
+---
+
+## Estructura del proyecto
+
+```
+PlantDetector/
+├── app.py              # Interfaz gráfica (Tkinter)
+├── pipeline.py         # Lógica del pipeline
+├── requirements.txt    # Dependencias Python
+├── build_exe.py        # Script para generar el .exe
+├── models/             # Aquí se guarda el modelo SAM (se crea automáticamente)
+│   └── sam_vit_h_4b8939.pth   (~2.4 GB, descarga automática)
+└── output/             # Resultados generados
+    ├── mapa_densidad.png
+    ├── zonificacion_productiva.gpkg
+    └── plantas_detectadas.csv
+```
+
+---
+
+## Uso
+
+1. **Abrí la app**
+2. **Cargá el ortomosaico** con el botón "Examinar" (archivo `.tif` georreferenciado)
+3. **Verificá el modelo SAM** — si no está, hacé clic en "Descargar modelo"
+4. **Ajustá los parámetros** si es necesario (los valores por defecto son los del paper)
+5. **Hacé clic en "CORRER PIPELINE"**
+6. Al finalizar, usá los botones para ver el mapa o descargar los archivos
+
+---
+
+## Parámetros
+
+| Parámetro | Valor por defecto | Descripción |
+|---|---|---|
+| GSD (cm/px) | 1.5 | Resolución espacial del ortomosaico |
+| Tile size (px) | 512 | Tamaño de ventana de procesamiento |
+| Umbral confianza | 0.25 | Mínimo score para aceptar una detección |
+| Tam. mín caja (px) | 20 | Descarta objetos muy pequeños (artefactos) |
+| Tam. máx caja (px) | 80 | Descarta objetos muy grandes (malezas) |
+| Radio NMS manual (px) | 25 | Distancia mínima entre plantas (~37.5 cm) |
+| Épocas entrenamiento | 10 | Inferencia temprana (óptima en CPU) |
+| Tamaño grilla SIG (m) | 10 | Resolución de la zonificación productiva |
+
+---
+
+## Requisitos de hardware
+
+- CPU moderna (AMD Ryzen / Intel Core, 4+ núcleos)
+- **16 GB RAM mínimo** (recomendado para ortomosaicos > 500 MB)
+- ~5 GB de espacio libre en disco (modelo SAM + archivos temporales)
+- GPU *no* requerida — todo corre en CPU
+
+---
+
+## Generar el ejecutable (.exe)
+
+```bash
+pip install pyinstaller
+python build_exe.py
+```
+
+El ejecutable queda en `dist/PlantDetector/PlantDetector.exe`.  
+Distribuir la carpeta completa `dist/PlantDetector/` (no solo el .exe).
+
+---
+
+## Cita
+
+Si usás este trabajo, por favor citar:
+
+> Sánchez Leguizamón, D. N. (2026). Detección automática y análisis espacial de densidad de plantas mediante imágenes RGB de dron y aprendizaje profundo. *IV Congreso Latinoamericano de Agricultura de Precisión (CLAP 2026)*. Santiago, Chile.
