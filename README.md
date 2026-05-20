@@ -1,4 +1,4 @@
-# 🌱 COVIO v2.1 (PlantDetector)
+# 🌱 AgroIA-COVIO v2.1
 
 **Detección automática y análisis espacial de densidad de plantas**  
 Desarrollado por Darío Sánchez Leguizamón — CLAP 2026
