@@ -1,6 +1,6 @@
-# CEREBRO - COVIO v2.0 (PlantDetector)
+# CEREBRO - COVIO v2.1 (PlantDetector)
 
-Este documento define la arquitectura, filosofía y reglas inviolables del sistema COVIO. Funciona como la fuente de la verdad para cualquier decisión técnica o de diseño en el proyecto.
+Este documento define la arquitectura, filosofía y reglas inviolables del sistema COVIO v2.1. Funciona como la fuente de la verdad para cualquier decisión técnica o de diseño en el proyecto.
 
 ---
 

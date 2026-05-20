@@ -1,5 +1,5 @@
 """
-COVIO v2.0 - Detección automática de plantas con YOLOv8 + SAM
+COVIO v2.1 - Detección automática de plantas con YOLOv8 + SAM
 Autor: Darío Sánchez Leguizamón
 """
 
@@ -111,7 +111,7 @@ def sanitize_folder_name(name):
 class CovioApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("COVIO v2.0 · Detección de Plantas por Dron")
+        self.title("COVIO v2.1 · Detección de Plantas por Dron")
         self.geometry("960x760")
         self.minsize(880, 640)
         self.configure(bg=BG_DARK)
@@ -136,7 +136,7 @@ class CovioApp(tk.Tk):
         hdr.pack(fill="x", padx=28)
         tk.Label(hdr, text="COVIO", font=FONT_TITLE,
                  bg=BG_DARK, fg=ACCENT).pack(side="left")
-        tk.Label(hdr, text="  v2.0 · Detección de Plantas por Dron",
+        tk.Label(hdr, text="  v2.1 · Detección de Plantas por Dron",
                  font=FONT_SUB, bg=BG_DARK, fg=TEXT_MUTED).pack(side="left", pady=4)
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x", padx=28)
 

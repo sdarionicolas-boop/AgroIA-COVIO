@@ -1,5 +1,5 @@
 """
-COVIO v2.0 — Pipeline de detección de plantas
+COVIO v2.1 — Pipeline de detección de plantas
 """
 
 import os
@@ -24,7 +24,7 @@ def _init_log(output_dir, lote=""):
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = os.path.join(output_dir, f"covio_log_{ts}.txt")
     _log_file = open(log_path, "w", encoding="utf-8", buffering=1)  # UTF-8 obligatorio para rutas con acentos
-    _log_file.write("COVIO v2.0 — Log de ejecucion\n")
+    _log_file.write("COVIO v2.1 — Log de ejecucion\n")
     if lote:
         _log_file.write(f"Lote: {lote}\n")
     _log_file.write(f"Inicio: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")

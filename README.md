@@ -1,4 +1,4 @@
-# 🌱 PlantDetector
+# 🌱 COVIO v2.1 (PlantDetector)
 
 **Detección automática y análisis espacial de densidad de plantas**  
 Desarrollado por Darío Sánchez Leguizamón — CLAP 2026
@@ -7,12 +7,17 @@ Desarrollado por Darío Sánchez Leguizamón — CLAP 2026
 
 ## ¿Qué hace?
 
-PlantDetector toma un ortomosaico RGB de dron (GeoTIFF) y produce:
+COVIO toma un ortomosaico RGB de dron (GeoTIFF) y produce:
 
 - **Conteo de plantas** individuales detectadas
 - **Mapa de zonificación productiva** (alta / media / baja densidad)
 - **GeoPackage (.gpkg)** con la grilla de densidades (integrable en QGIS / monitores agrícolas)
 - **CSV georreferenciado** con coordenadas UTM de cada planta
+
+### Novedades en v2.1:
+*   **Preajustes de Cultivo (Presets):** Selector que precarga de forma inmediata parámetros optimizados para Maíz, Palma, Lechuga y Girasol.
+*   **Auto-detección de GSD:** Extrae automáticamente la resolución del ortomosaico en centímetros (`cm/px`) al cargar el GeoTIFF (requiere CRS proyectado).
+*   **Regla de Seguridad de Épocas:** Alertas automáticas y ajuste a un piso de 10 épocas para lotes pequeños (<20 tiles) para garantizar la convergencia del entrenamiento de YOLOv8m.
 
 Pipeline interno: SAM (pseudo-etiquetado) → YOLOv8m (detección) → Filtros agronómicos → SIG
 
@@ -116,3 +121,9 @@ Distribuir la carpeta completa `dist/PlantDetector/` (no solo el .exe).
 Si usás este trabajo, por favor citar:
 
 > Sánchez Leguizamón, D. N. (2026). Detección automática y análisis espacial de densidad de plantas mediante imágenes RGB de dron y aprendizaje profundo. *IV Congreso Latinoamericano de Agricultura de Precisión (CLAP 2026)*. Santiago, Chile.
+
+---
+
+## Licencia
+
+Este proyecto está bajo la Licencia **GNU GPL v3.0** - Consulta el archivo [LICENSE](file:///e:/Desktop_Movidos/PlantDetector/LICENSE) para más detalles.
