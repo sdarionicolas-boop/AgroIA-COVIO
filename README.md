@@ -7,7 +7,7 @@ Desarrollado por Darío Sánchez Leguizamón — CLAP 2026
 
 ## ¿Qué hace?
 
-COVIO toma un ortomosaico RGB de dron (GeoTIFF) y produce:
+AgroIA-COVIO toma un ortomosaico RGB de dron (GeoTIFF) y produce:
 
 - **Conteo de plantas** individuales detectadas
 - **Mapa de zonificación productiva** (alta / media / baja densidad)
@@ -138,9 +138,18 @@ Para más detalles, consulta los archivos [LICENSE](file:///e:/Desktop_Movidos/P
 ## Licenciamiento Comercial / Integración Propietaria
 
 Como autor único y titular exclusivo de los derechos de autor de AgroIA-COVIO, ofrezco este software bajo un esquema de **licenciamiento dual**:
-*   **Comunitario y Abierto:** Gratuito bajo los términos de la licencia GNU GPL v3.0 (con atribución 7b).
-*   **Comercial y Cerrado:** Licencias comerciales exclusivas diseñadas para empresas y AgTechs que deseen integrar los algoritmos y capacidades de COVIO dentro de sus productos cerrados o propietarios, eximiéndose de las obligaciones de copyleft de la GPL.
+*   **Comunitario y Abierto:** Gratuito bajo los términos de la licencia GNU GPL v3.0 (con atribución de preservación 7b).
+*   **Comercial y Cerrado:** Licencias comerciales exclusivas diseñadas para empresas y AgTechs que deseen integrar los algoritmos y capacidades de AgroIA-COVIO dentro de sus productos cerrados o propietarios, eximiéndose de las obligaciones de copyleft de la GPL.
 
 Para cotizaciones de licencias comerciales, integraciones personalizadas o consultoría, contactar a:
 📩 **sdarionicolas@gmail.com**
+
+---
+
+## Contribuciones y Desarrollo
+
+¡Las contribuciones son bienvenidas! Si deseas aportar código, corregir errores o mejorar la documentación, por favor lee las instrucciones en [CONTRIBUTING.md](file:///e:/Desktop_Movidos/PlantDetector/CONTRIBUTING.md).
+
+Para poder aceptar contribuciones de terceros en el código principal sin comprometer el modelo comercial dual, es obligatorio aceptar los términos descritos en el [Acuerdo de Licencia de Contribuidor (CLA)](file:///e:/Desktop_Movidos/PlantDetector/CLA.md).
+
 
