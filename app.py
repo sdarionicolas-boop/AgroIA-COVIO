@@ -1,6 +1,26 @@
 """
-COVIO v2.1 - Detección automática de plantas con YOLOv8 + SAM
+AgroIA-COVIO v2.1 - Detección automática de plantas con YOLOv8 + SAM
 Autor: Darío Sánchez Leguizamón
+
+Copyright (c) 2026 Darío Sánchez Leguizamón
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+Additional Terms (Section 7b of GNU GPL v3.0):
+Any interactive user interface (including GUIs, CLIs, and web apps)
+derived from or using this Program must prominently display the
+attribution: "AgroIA-COVIO — desarrollado por Darío Sánchez Leguizamón"
 """
 
 import tkinter as tk
@@ -111,7 +131,7 @@ def sanitize_folder_name(name):
 class CovioApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("COVIO v2.1 · Detección de Plantas por Dron")
+        self.title("AgroIA-COVIO v2.1 · Detección de Plantas por Dron")
         self.geometry("960x760")
         self.minsize(880, 640)
         self.configure(bg=BG_DARK)
@@ -134,7 +154,7 @@ class CovioApp(tk.Tk):
         # Header
         hdr = tk.Frame(self, bg=BG_DARK, pady=14)
         hdr.pack(fill="x", padx=28)
-        tk.Label(hdr, text="COVIO", font=FONT_TITLE,
+        tk.Label(hdr, text="AgroIA-COVIO", font=FONT_TITLE,
                  bg=BG_DARK, fg=ACCENT).pack(side="left")
         tk.Label(hdr, text="  v2.1 · Detección de Plantas por Dron",
                  font=FONT_SUB, bg=BG_DARK, fg=TEXT_MUTED).pack(side="left", pady=4)
@@ -480,6 +500,9 @@ class CovioApp(tk.Tk):
         tk.Label(bar, textvariable=self.status_text,
                  font=("Calibri", 9), bg=BG_CARD, fg=TEXT_MUTED,
                  anchor="w").pack(side="left", padx=14)
+        tk.Label(bar, text="AgroIA-COVIO v2.1 — desarrollado por Darío Sánchez Leguizamón",
+                 font=("Calibri", 9, "italic"), bg=BG_CARD, fg=TEXT_MUTED,
+                 anchor="e").pack(side="right", padx=14)
 
     def _abort_pipeline(self):
         if self._pipeline_running:
@@ -749,7 +772,7 @@ class CovioApp(tk.Tk):
     def _run_pipeline(self, ortho_path, output_dir):
         try:
             self._log("=" * 50, "muted")
-            self._log("COVIO v2.0 — INICIANDO ANÁLISIS", "ok")
+            self._log("AgroIA-COVIO v2.1 — INICIANDO ANÁLISIS", "ok")
             self._log("=" * 50, "muted")
             params = self._get_params()
             from pipeline import run_full_pipeline

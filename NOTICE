@@ -1,0 +1,33 @@
+AgroIA-COVIO v2.1
+Copyright (c) 2026 Darío Sánchez Leguizamón
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+=============================================================================
+TÉRMINOS ADICIONALES (Sección 7b de la GNU GPLv3) / ADDITIONAL TERMS (GNU GPLv3 Section 7b)
+=============================================================================
+
+De conformidad con la Sección 7(b) de la Licencia Pública General de GNU, Versión 3, el titular de los derechos de autor exige que cualquier interfaz de usuario interactiva (incluyendo, entre otras, interfaces gráficas de usuario, interfaces de línea de comandos y aplicaciones web) derivada de este Programa o que lo utilice, debe mostrar de forma visible y destacada la siguiente atribución de autoría:
+
+"AgroIA-COVIO — desarrollado por Darío Sánchez Leguizamón"
+
+Esta atribución debe ser claramente visible para los usuarios finales y no puede ser modificada, ocultada o eliminada en ninguna versión modificada o trabajo derivado.
+
+-----------------------------------------------------------------------------
+
+Pursuant to Section 7(b) of the GNU General Public License, Version 3, the copyright holder requires that any interactive user interface (including, but not limited to, graphical user interfaces, command line interfaces, and web applications) derived from or using this Program must prominently display the following author attribution:
+
+"AgroIA-COVIO — desarrollado por Darío Sánchez Leguizamón"
+
+This attribution must be visible to end-users and must not be altered, obscured, or removed in any modified versions or derivative works.

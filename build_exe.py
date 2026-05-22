@@ -1,5 +1,26 @@
 """
-build_exe.py — Genera el ejecutable de COVIO v2.0 con PyInstaller
+build_exe.py — Genera el ejecutable de AgroIA-COVIO v2.1 con PyInstaller
+Autor: Darío Sánchez Leguizamón
+
+Copyright (c) 2026 Darío Sánchez Leguizamón
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+Additional Terms (Section 7b of GNU GPL v3.0):
+Any interactive user interface (including GUIs, CLIs, and web apps)
+derived from or using this Program must prominently display the
+attribution: "AgroIA-COVIO — desarrollado por Darío Sánchez Leguizamón"
 """
 import subprocess
 import sys
@@ -16,7 +37,7 @@ cmd = [
     "--noconfirm",
     "--onedir",
     "--windowed",
-    "--name", "COVIO_2.0",
+    "--name", "AgroIA-COVIO",
     "--add-data", f"pipeline.py{os.pathsep}.",
     # rasterio
     "--hidden-import", "rasterio._shim",
@@ -56,6 +77,6 @@ cmd = [
     "app.py",
 ]
 
-print("Construyendo ejecutable COVIO 2.0...")
+print("Construyendo ejecutable AgroIA-COVIO v2.1...")
 subprocess.check_call(cmd)
-print("\n✓ Ejecutable en: dist/COVIO_2.0/COVIO_2.0.exe")
+print("\n✓ Ejecutable en: dist/AgroIA-COVIO/AgroIA-COVIO.exe")

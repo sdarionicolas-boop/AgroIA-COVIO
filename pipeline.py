@@ -1,5 +1,25 @@
 """
-COVIO v2.1 — Pipeline de detección de plantas
+AgroIA-COVIO v2.1 — Pipeline de detección de plantas
+
+Copyright (c) 2026 Darío Sánchez Leguizamón
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+Additional Terms (Section 7b of GNU GPL v3.0):
+Any interactive user interface (including GUIs, CLIs, and web apps)
+derived from or using this Program must prominently display the
+attribution: "AgroIA-COVIO — desarrollado por Darío Sánchez Leguizamón"
 """
 
 import os
@@ -22,9 +42,9 @@ _log_file = None
 def _init_log(output_dir, lote=""):
     global _log_file
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = os.path.join(output_dir, f"covio_log_{ts}.txt")
+    log_path = os.path.join(output_dir, f"agroia_covio_log_{ts}.txt")
     _log_file = open(log_path, "w", encoding="utf-8", buffering=1)  # UTF-8 obligatorio para rutas con acentos
-    _log_file.write("COVIO v2.1 — Log de ejecucion\n")
+    _log_file.write("AgroIA-COVIO v2.1 — Log de ejecución\n")
     if lote:
         _log_file.write(f"Lote: {lote}\n")
     _log_file.write(f"Inicio: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
@@ -705,7 +725,7 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
 
         progress_fn(100)
         log("\n" + "="*50, "muted")
-        log("COVIO v2.0 — ANALISIS COMPLETADO", "ok")
+        log("AgroIA-COVIO v2.1 — ANALISIS COMPLETADO", "ok")
         log("─" * 40, "muted")
         log(f"  Cultivo / Lote     : {lote}", "info")
         log(f"  Objetos detectados : {n_plants}", "info")

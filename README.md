@@ -124,6 +124,23 @@ Si usás este trabajo, por favor citar:
 
 ---
 
-## Licencia
+## Licencia y Atribución
 
-Este proyecto está bajo la Licencia **GNU GPL v3.0** - Consulta el archivo [LICENSE](file:///e:/Desktop_Movidos/PlantDetector/LICENSE) para más detalles.
+Este proyecto está distribuido bajo la Licencia **GNU GPL v3.0** con **Términos Adicionales** (Sección 7b) para garantizar la atribución de autoría en la interfaz de usuario.
+
+Cualquier versión modificada, copia o trabajo derivado de este software (incluyendo interfaces gráficas, herramientas de línea de comandos o aplicaciones web) **debe mostrar de forma visible y destacada** el siguiente crédito en su interfaz de usuario final:
+> **AgroIA-COVIO — desarrollado por Darío Sánchez Leguizamón**
+
+Para más detalles, consulta los archivos [LICENSE](file:///e:/Desktop_Movidos/PlantDetector/LICENSE) y [NOTICE](file:///e:/Desktop_Movidos/PlantDetector/NOTICE).
+
+---
+
+## Licenciamiento Comercial / Integración Propietaria
+
+Como autor único y titular exclusivo de los derechos de autor de AgroIA-COVIO, ofrezco este software bajo un esquema de **licenciamiento dual**:
+*   **Comunitario y Abierto:** Gratuito bajo los términos de la licencia GNU GPL v3.0 (con atribución 7b).
+*   **Comercial y Cerrado:** Licencias comerciales exclusivas diseñadas para empresas y AgTechs que deseen integrar los algoritmos y capacidades de COVIO dentro de sus productos cerrados o propietarios, eximiéndose de las obligaciones de copyleft de la GPL.
+
+Para cotizaciones de licencias comerciales, integraciones personalizadas o consultoría, contactar a:
+📩 **sdarionicolas@gmail.com**
+
