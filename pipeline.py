@@ -589,7 +589,10 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
                  for y0 in np.arange(ymin, ymax, gs)]
         grid = gpd.GeoDataFrame(geometry=cells, crs=gdf.crs)
         joined = gpd.sjoin(grid, gdf[["geometry"]], how="left", predicate="contains")
-        counts = joined.groupby(joined.index).size() - 1
+        # count() sobre index_right ignora las celdas sin match (NaN de un left join);
+        # size() contaría esa fila NaN como 1 y restarle 1 subestimaba en una planta
+        # cada celda con al menos una detección.
+        counts = joined.groupby(joined.index)["index_right"].count()
         grid["densidad"] = (counts / (gs*gs)) * 10000
         grid["densidad"] = grid["densidad"].clip(lower=0)
 
