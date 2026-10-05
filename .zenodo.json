@@ -1,0 +1,20 @@
+{
+  "title": "AgroIA-COVIO: detección de plantas y zonificación de densidad con SAM + YOLOv8m",
+  "upload_type": "software",
+  "description": "Detección automática de plantas y zonificación de densidad de cultivos a partir de ortomosaicos RGB de dron, usando SAM (pseudo-etiquetado) y YOLOv8m, ejecutable íntegramente en CPU. Desarrollado para CLAP 2026.",
+  "creators": [
+    {
+      "name": "Sánchez Leguizamón, Darío Nicolás"
+    }
+  ],
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "drone",
+    "computer vision",
+    "SAM",
+    "YOLO",
+    "plant detection",
+    "precision agriculture"
+  ],
+  "language": "spa"
+}
