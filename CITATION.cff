@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "Si usás este software, por favor citalo con estos metadatos."
+title: "AgroIA-COVIO"
+version: "2.1"
+type: software
+authors:
+  - family-names: "Sánchez Leguizamón"
+    given-names: "Darío Nicolás"
+repository-code: "https://github.com/sdarionicolas-boop/AgroIA-COVIO"
+license: GPL-3.0-or-later
+abstract: >-
+  Detección automática de plantas y zonificación de densidad de cultivos a
+  partir de ortomosaicos RGB de dron, usando SAM (pseudo-etiquetado) y YOLOv8m,
+  ejecutable íntegramente en CPU.
+keywords:
+  - drone
+  - computer vision
+  - SAM
+  - YOLO
+  - plant detection
+  - precision agriculture
+preferred-citation:
+  type: conference-paper
+  title: "Detección automática y análisis espacial de densidad de plantas mediante imágenes RGB de dron y aprendizaje profundo"
+  authors:
+    - family-names: "Sánchez Leguizamón"
+      given-names: "Darío Nicolás"
+  collection-title: "IV Congreso Latinoamericano de Agricultura de Precisión (CLAP 2026)"
+  location:
+    name: "Santiago, Chile"
+  year: 2026
+  month: 3
