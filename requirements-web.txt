@@ -1,0 +1,13 @@
+# AgroIA-COVIO v2.1 — Streamlit Web App (Hugging Face Spaces, CPU)
+# Pin a wheels CPU de PyTorch: evita descargar ~2 GB de CUDA inútil en un
+# Space de CPU (build más rápido y por debajo del límite de disco gratuito).
+--extra-index-url https://download.pytorch.org/whl/cpu
+streamlit>=1.40.0
+opencv-python-headless>=4.8.0
+numpy>=1.24.0,<2.0  # torch 2.2.2 fue compilado contra NumPy 1.x; NumPy 2.x rompe torch.as_tensor
+pandas>=2.0.0
+pillow>=10.0.0
+torch==2.2.2+cpu
+torchvision==0.17.2+cpu
+timm>=0.9.0
+mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git

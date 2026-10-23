@@ -1,0 +1,18 @@
+[theme]
+base = "dark"
+primaryColor = "#4CAF82"
+backgroundColor = "#0F1923"
+secondaryBackgroundColor = "#1A2535"
+textColor = "#E8EDF2"
+font = "sans serif"
+
+[server]
+maxUploadSize = 50
+# Desactivado: detrás del proxy de HF Spaces (Docker) la cookie/token XSRF no
+# viaja correctamente y el POST de file_uploader vuelve con 403 (AxiosError).
+# El propio proxy de Spaces ya aísla cada sesión, así que esta protección
+# adicional es redundante ahí y solo rompe la subida de archivos.
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
