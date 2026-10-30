@@ -88,7 +88,7 @@ PlantDetector/
 | Parámetro | Valor por defecto | Descripción |
 |---|---|---|
 | GSD (cm/px) | 1.5 | Resolución espacial del ortomosaico |
-| Tile size (px) | 512 | Tamaño de ventana de procesamiento |
+| Tile size (px) | 1024 | Tamaño de ventana de procesamiento. **Usar 1024**: en pruebas sobre el ortomosaico de maíz (GSD ~1,5 cm), tile 1024 detectó ~5.500 plantas y tile 512 solo 2 (el modelo no converge con 10 épocas). Bajar a 512 solo si la RAM no alcanza, y verificar el conteo. |
 | Umbral confianza | 0.25 | Mínimo score para aceptar una detección |
 | Tam. mín caja (px) | 20 | Descarta objetos muy pequeños (artefactos) |
 | Tam. máx caja (px) | 80 | Descarta objetos muy grandes (malezas) |
