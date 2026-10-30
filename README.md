@@ -25,29 +25,32 @@ Pipeline interno: SAM (pseudo-etiquetado) → YOLOv8m (detección) → Filtros a
 
 ## Instalación (primera vez)
 
-### Opción A: Ejecutable (recomendada para usuarios no técnicos)
+### Requisitos
+- Windows, Linux o macOS con **Python 3.10 o superior** ([python.org](https://www.python.org/downloads/); en Windows marcá "Add Python to PATH").
+- **Git** instalado ([git-scm.com](https://git-scm.com/downloads)): hace falta porque `segment-anything` y `mobile-sam` se instalan desde GitHub.
+- **16 GB de RAM** como mínimo (ideal 32 GB para ortomosaicos grandes) y ~10 GB libres en disco.
+- Internet la primera vez: se descargan el modelo SAM (~2,4 GB, o ~40 MB en modo MobileSAM) y los pesos de YOLOv8m.
 
-1. Descomprimí la carpeta `PlantDetector/`
-2. Hacé doble clic en `PlantDetector.exe`
-3. La primera vez, la app descargará automáticamente el modelo SAM (~2.4 GB)
-
-### Opción B: Desde código fuente (para desarrolladores)
+### Desde el código fuente (recomendado)
 
 ```bash
-# Clonar / descomprimir el proyecto
-cd PlantDetector
+git clone https://github.com/sdarionicolas-boop/AgroIA-COVIO.git
+cd AgroIA-COVIO
 
-# Crear entorno virtual (recomendado)
+# Entorno virtual (recomendado)
 python -m venv venv
 venv\Scripts\activate          # Windows
 # source venv/bin/activate     # Linux/Mac
 
-# Instalar dependencias
-pip install -r requirements.txt
+pip install -r requirements.txt   # tarda varios minutos (instala PyTorch)
 
-# Lanzar la app
 python app.py
 ```
+
+Al abrir la app: cargá el GeoTIFF, descargá el modelo SAM con el botón del panel "Modelo SAM" y usá primero **"Previsualizar Parámetros (1 Tile)"** para validar GSD y filtros antes de correr el análisis completo. Si algo falla en la instalación, abrí un [issue](https://github.com/sdarionicolas-boop/AgroIA-COVIO/issues) con el mensaje de error.
+
+### Ejecutable para Windows (opcional)
+No hay ejecutable publicado en los releases. Podés generarlo vos con `python build_exe.py`; queda en `dist/AgroIA-COVIO/AgroIA-COVIO.exe` (distribuí la carpeta completa, no solo el `.exe`).
 
 ---
 
