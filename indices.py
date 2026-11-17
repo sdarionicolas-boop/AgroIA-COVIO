@@ -10,6 +10,13 @@ sirven para comparar zonas dentro de un mismo vuelo, no entre vuelos o fechas.
 import os
 import numpy as np
 
+AVISO_CALIBRACION = (
+    "AVISO: NDVI/NDRE calculados sobre los valores del ortomosaico tal como vienen. Si WebODM se corrio "
+    "sin calibracion radiometrica (radiometric-calibration=none) los valores son RELATIVOS: sirven para "
+    "comparar zonas dentro de este vuelo, no contra otros vuelos o fechas ni contra valores de la "
+    "bibliografia. El archivo no permite verificar como se calibro. Estos indices no estan validados "
+    "con datos de campo.")
+
 _ALIAS = {
     "red": "red", "r": "red",
     "green": "green", "g": "green",
@@ -114,7 +121,8 @@ def calcular_indices(ortho_path, out_dir, log=print, block=1024):
             stats[k] = dict(media=float(a.mean()), p2=float(np.percentile(a, 2)), p98=float(np.percentile(a, 98)))
     _vista_previa(rutas, os.path.join(out_dir, "indices.png"), log)
     log("  Indices listos: " + ", ".join(os.path.basename(p) for p in rutas.values()))
-    return dict(rutas=rutas, stats=stats, png=os.path.join(out_dir, "indices.png"))
+    log("  " + AVISO_CALIBRACION)
+    return dict(rutas=rutas, stats=stats, png=os.path.join(out_dir, "indices.png"), aviso=AVISO_CALIBRACION)
 
 
 def _vista_previa(rutas, png, log):
@@ -132,9 +140,12 @@ def _vista_previa(rutas, png, log):
             v = s.read(1, out_shape=(max(1, s.height // k_), max(1, s.width // k_)))
         f = v[np.isfinite(v)]
         im = a.imshow(v, cmap="RdYlGn", vmin=np.percentile(f, 2), vmax=np.percentile(f, 98))
-        a.set_title(k.upper() + " (relativo, sin calibracion)" ); a.axis("off")
+        a.set_title(k.upper() + " (valores relativos)"); a.axis("off")
         fig.colorbar(im, ax=a, shrink=0.7)
-    fig.tight_layout(); fig.savefig(png, dpi=100); plt.close(fig)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    fig.text(0.5, 0.012, "Relativo: comparable solo dentro de este vuelo; sin calibracion verificada ni validacion de campo.",
+             ha="center", fontsize=9, color="#444")
+    fig.savefig(png, dpi=100); plt.close(fig)
 
 
 if __name__ == "__main__":
