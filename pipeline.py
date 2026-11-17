@@ -27,6 +27,7 @@ import gc
 import datetime
 import numpy as np
 import pandas as pd
+from indices import bandas_rgb
 
 STEPS = [
     "Cargando ortomosaico y particionando tiles",
@@ -74,7 +75,7 @@ def _estiramiento_global(src, pcts=(2, 98)):
     if src.dtypes[0] == "uint8":
         return None
     k = max(1, max(src.width, src.height) // 3000)
-    sm = src.read((1, 2, 3), out_shape=(3, max(1, src.height // k), max(1, src.width // k)))
+    sm = src.read(bandas_rgb(src), out_shape=(3, max(1, src.height // k), max(1, src.width // k)))
     valid = sm.any(axis=0)
     if not valid.any():
         return None
@@ -123,7 +124,7 @@ def preview_tile(ortho_path, models_dir, params, log_fn):
         # Tomar un tile del centro del lote para que sea representativo
         cx, cy = src.width // 2, src.height // 2
         window = Window(cx - tile_size//2, cy - tile_size//2, tile_size, tile_size)
-        tile = src.read((1, 2, 3), window=window)
+        tile = src.read(bandas_rgb(src), window=window)
         tile = np.moveaxis(tile, 0, -1)
         tile = _a_uint8(tile, _estiramiento_global(src))
 
@@ -253,6 +254,7 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
                                compress="lzw")
                 with rasterio.open(resampled_path, "w", **profile) as dst:
                     dst.write(data)
+                    dst.descriptions = src.descriptions  # conserva nombres de banda
                 del data
                 gc.collect()
 
@@ -278,6 +280,7 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
         with rasterio.open(ortho_effective) as src:
             log(f"  Generando tiles de {tile_size}x{tile_size} px...", "muted")
             estiramiento = _estiramiento_global(src)
+            bandas = bandas_rgb(src)
             if estiramiento:
                 log(f"  Raster {src.dtypes[0]}: estiramiento unico a 8 bits "
                     f"({estiramiento[0]:.0f}-{estiramiento[1]:.0f}, percentiles 2-98).", "muted")
@@ -287,7 +290,7 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
                 for x in range(0, w, tile_size):
                     check_stop()
                     window = Window(x, y, min(tile_size, w-x), min(tile_size, h-y))
-                    tile = src.read((1, 2, 3), window=window)
+                    tile = src.read(bandas, window=window)
                     tile = _a_uint8(np.moveaxis(tile, 0, -1), estiramiento)
                     if tile.shape[0] < tile_size or tile.shape[1] < tile_size:
                         padded = np.zeros((tile_size, tile_size, 3), dtype=tile.dtype)
