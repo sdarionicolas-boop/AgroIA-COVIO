@@ -38,6 +38,7 @@ def test_fallas_cobertura_y_grilla(mosaico, tmp_path):
     assert f["area_fallas_m2"] == pytest.approx(100, rel=0.05)
     assert f["cobertura_veg_pct"] == pytest.approx(99, abs=0.5)
     assert f["ndvi_medio"] == pytest.approx(0.5, abs=0.01)     # (300-100)/(300+100)
+    assert os.path.exists(os.path.join(str(tmp_path / "o"), "LEEME.txt"))
     g = gpd.read_file(r["gpkg"], layer="grilla")
     assert len(g) == 25 and set(g["vigor"]) <= {"baja", "media", "alta", "n/d"}
 

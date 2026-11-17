@@ -57,6 +57,8 @@ python app.py
 PlantDetector/
 ├── app.py              # Interfaz gráfica (Tkinter)
 ├── pipeline.py         # Lógica del pipeline
+├── indices.py          # NDVI/NDRE (multiespectral, experimental)
+├── lote.py             # Estadísticas, fallas y vigor por lote (experimental)
 ├── requirements.txt    # Dependencias Python
 ├── build_exe.py        # Script para generar el .exe
 ├── models/             # Aquí se guarda el modelo SAM (se crea automáticamente)
@@ -77,6 +79,36 @@ PlantDetector/
 4. **Ajustá los parámetros** si es necesario (los valores por defecto son los del paper)
 5. **Hacé clic en "CORRER PIPELINE"**
 6. Al finalizar, usá los botones para ver el mapa o descargar los archivos
+
+---
+
+## Módulo multiespectral (experimental)
+
+Además del conteo de plantas, el repositorio incluye herramientas para ortomosaicos multiespectrales
+(p. ej. MicaSense RedEdge-M procesado con WebODM/ODM). **Es un módulo experimental: no está validado
+con datos de campo y no está conectado a la interfaz gráfica; se usa por línea de comandos.**
+
+| Herramienta | Qué hace |
+|---|---|
+| `pipeline.py` | Si el ortomosaico no es de 8 bits (p. ej. uint16 de ODM), aplica un estiramiento único (percentiles 2–98) para que todos los tiles tengan el mismo brillo. Lee R, G y B por nombre de banda. |
+| `indices.py` | Calcula NDVI (NIR, Red) y NDRE (NIR, RedEdge): `python indices.py ORTO.tif SALIDA` |
+| `lote.py` | Dentro de polígonos de lote que dibujás vos: estadísticas, fallas y zonificación de vigor en grilla: `python lote.py ORTO.tif LOTES.gpkg SALIDA --grid 10` |
+
+**Cómo leer los resultados**
+- Los índices son **relativos**. Sirven para comparar zonas dentro de un mismo vuelo; no para comparar
+  fechas o vuelos distintos, ni contra valores de la bibliografía, salvo que el ortomosaico tenga
+  calibración radiométrica verificada (el archivo no permite comprobarlo).
+- La zonificación (baja/media/alta) usa terciles de NDRE **dentro de cada lote**: siempre hay un tercio
+  por clase. Mirá `cv_ndre_entre_celdas_pct` en `resumen.csv`: si es bajo, las diferencias son pequeñas.
+- Una "falla" es una mancha de suelo o vegetación muy baja según un umbral de NDVI (automático, Otsu,
+  o fijado con `--umbral-ndvi`). No implica falta de plantas: puede ser camino, maleza o un sector
+  senescente. Revisá `vista.png`.
+- En cultivo cerrado (plantas que se tocan) no tiene sentido contar plantas individuales; para ese caso
+  usá los índices y no el conteo.
+
+**Opciones de WebODM sugeridas** (sin validar con un reprocesado completo): `orthophoto-resolution` 1.5 cm/px,
+`radiometric-calibration: camera`, `auto-boundary: false`, `crop: 0`, `skip-3dmodel: true`. Si el
+ortomosaico sale con parte del lote sin cubrir, revisá primero `auto-boundary` y `crop`.
 
 ---
 

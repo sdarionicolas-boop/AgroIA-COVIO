@@ -52,6 +52,7 @@ def test_ndvi_ndre_valores_y_nodata(tmp_path):
     assert v[1, 1] == pytest.approx(0.5)        # (300-100)/(300+100)
     assert e[1, 1] == pytest.approx(0.2)        # (300-200)/(300+200)
     assert np.isnan(v[0, 0]) and np.isnan(e[0, 0])
+    assert "RELATIVOS" in r["aviso"]
 
 
 def test_alpha_sin_nombre_se_detecta_por_colorinterp():

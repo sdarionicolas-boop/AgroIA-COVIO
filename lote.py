@@ -16,6 +16,23 @@ import argparse
 import os
 import numpy as np
 
+from indices import AVISO_CALIBRACION, calcular_indices
+
+
+_LEEME = AVISO_CALIBRACION + """
+
+COMO LEER LOS RESULTADOS
+- resumen.csv: una fila por lote (NDVI/NDRE medio, desvio, p10/p90, cobertura, fallas, celdas).
+- lote_analizado.gpkg: capas lotes, fallas y grilla (abrir en QGIS).
+- Vigor (baja/media/alta): terciles de NDRE ENTRE LAS CELDAS DEL MISMO LOTE. Siempre hay un tercio por
+  clase, aunque el lote sea parejo. Mira cv_ndre_entre_celdas_pct: valores bajos (<10 %) indican que las
+  diferencias entre celdas son pequenas.
+- Fallas: manchas de suelo o vegetacion muy baja segun el umbral de NDVI (columna umbral_ndvi). El
+  umbral automatico (Otsu) puede no ser adecuado en cultivos muy densos o muy ralos: revisa vista.png y,
+  si hace falta, fija --umbral-ndvi.
+- Una falla no implica falta de plantas: puede ser camino, suelo, maleza o un sector senescente.
+"""
+
 
 def _otsu(v, bins=256):
     h, e = np.histogram(v, bins=bins)
@@ -46,7 +63,6 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
     from rasterio.features import geometry_mask, shapes
     from rasterio.windows import from_bounds, Window
     from shapely.geometry import shape, box
-    from indices import calcular_indices
 
     os.makedirs(out_dir, exist_ok=True)
     idx = calcular_indices(ortho_path, os.path.join(out_dir, "indices"), log=log)
@@ -179,7 +195,10 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
         gpd.GeoDataFrame(grilla_l, crs=crs).to_file(gpkg, layer="grilla", driver="GPKG")
     pd.DataFrame(gdf.drop(columns="geometry")).to_csv(os.path.join(out_dir, "resumen.csv"), index=False)
     png = _vista(gdf, grilla_l, fallas_l, rn["ndre"], os.path.join(out_dir, "vista.png"))
+    with open(os.path.join(out_dir, "LEEME.txt"), "w", encoding="utf-8") as f:
+        f.write(_LEEME)
     log(f"  Resultados en {out_dir}")
+    log("  " + AVISO_CALIBRACION)
     return dict(resumen=gdf.drop(columns="geometry"), gpkg=gpkg, png=png, indices=idx)
 
 
@@ -218,7 +237,9 @@ def _vista(gdf, grilla, fallas, ndre_path, png):
     gdf.boundary.plot(ax=ax[1], color="black", linewidth=1.5)
     ax[1].set_xlim(ext[0], ext[1])
     ax[1].set_ylim(ext[2], ext[3])
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    fig.text(0.5, 0.012, "Valores relativos: comparables solo dentro de este vuelo. Zonas por terciles: siempre hay un tercio por clase.",
+             ha="center", fontsize=9, color="#444")
     fig.savefig(png, dpi=100)
     plt.close(fig)
     return png
