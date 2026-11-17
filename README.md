@@ -86,7 +86,8 @@ PlantDetector/
 
 Además del conteo de plantas, el repositorio incluye herramientas para ortomosaicos multiespectrales
 (p. ej. MicaSense RedEdge-M procesado con WebODM/ODM). **Es un módulo experimental: no está validado
-con datos de campo y no está conectado a la interfaz gráfica; se usa por línea de comandos.**
+con datos de campo.** Se usa desde la interfaz (botón **🛰 Índices multiespectrales**, con el ortomosaico ya
+seleccionado) o por línea de comandos.
 
 | Herramienta | Qué hace |
 |---|---|

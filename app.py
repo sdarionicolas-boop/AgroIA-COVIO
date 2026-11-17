@@ -177,6 +177,7 @@ class CovioApp(tk.Tk):
         self._build_params_card(left)
         self._build_sam_card(left)
         self._build_run_button(left)
+        self._build_indices_button(left)
 
         self._build_log_card(right)
         self._build_results_card(right)
@@ -420,6 +421,172 @@ class CovioApp(tk.Tk):
                                              maximum=100, mode="determinate")
         self.main_progress.pack(fill="x", pady=(4, 0))
 
+    def _build_indices_button(self, parent):
+        self.indices_btn = tk.Button(
+            parent, text="🛰  Índices multiespectrales (NDVI / NDRE) — experimental",
+            font=FONT_BODY, bg=BG_CARD2, fg=TEXT_MUTED, relief="flat", bd=0,
+            activebackground=BORDER, cursor="hand2", pady=6,
+            command=self._open_indices_dialog)
+        self.indices_btn.pack(fill="x", pady=(2, 0))
+        self._add_tooltip(self.indices_btn,
+                          "Para ortomosaicos multiespectrales (p. ej. WebODM con bandas NIR y RedEdge).\n"
+                          "Calcula NDVI/NDRE y, opcionalmente, estadísticas, fallas y vigor por lote.")
+
+    def _open_indices_dialog(self):
+        ortho = self.ortho_path.get()
+        if not ortho or not os.path.exists(ortho):
+            messagebox.showerror("Error", "Primero seleccioná un ortomosaico GeoTIFF multiespectral.")
+            return
+        try:
+            import rasterio
+            from indices import detectar_bandas
+            with rasterio.open(ortho) as src:
+                b = detectar_bandas(src)
+            if "nir" not in b or "red" not in b:
+                messagebox.showerror(
+                    "No es multiespectral",
+                    "No se encontraron las bandas Red y NIR por nombre en este ortomosaico.\n"
+                    "Este módulo necesita un GeoTIFF multiespectral (p. ej. de WebODM con RedEdge-M).")
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo leer el ortomosaico:\n{e}")
+            return
+
+        dlg = tk.Toplevel(self)
+        dlg.title("Índices multiespectrales (experimental)")
+        dlg.configure(bg=BG_DARK)
+        dlg.geometry("560x470")
+        dlg.transient(self)
+
+        self.poly_path = tk.StringVar(value="")
+        self.idx_grid = tk.StringVar(value="10")
+        self.idx_umbral = tk.StringVar(value="")
+        self.idx_minfalla = tk.StringVar(value="2")
+
+        pad = {"padx": 16}
+        tk.Label(dlg, text="Índices multiespectrales", font=("Trebuchet MS", 14, "bold"),
+                 bg=BG_DARK, fg=ACCENT).pack(anchor="w", pady=(14, 2), **pad)
+        tk.Label(dlg, text="Los valores son RELATIVOS: sirven para comparar zonas dentro de este vuelo, "
+                           "no entre fechas. No están validados con datos de campo.",
+                 font=("Calibri", 9), bg=BG_DARK, fg=TEXT_WARN, wraplength=520, justify="left"
+                 ).pack(anchor="w", pady=(0, 10), **pad)
+
+        tk.Label(dlg, text="Polígonos de lote (opcional, .gpkg / .shp)", font=FONT_LABEL,
+                 bg=BG_DARK, fg=TEXT_MAIN).pack(anchor="w", **pad)
+        row = tk.Frame(dlg, bg=BG_DARK)
+        row.pack(fill="x", **pad)
+        tk.Entry(row, textvariable=self.poly_path, bg=BG_CARD2, fg=TEXT_MAIN, font=FONT_BODY,
+                 relief="flat", bd=0, insertbackground=TEXT_MAIN
+                 ).pack(side="left", fill="x", expand=True, ipady=6, ipadx=6)
+        tk.Button(row, text="Examinar", font=FONT_BODY, bg=ACCENT2, fg="white", relief="flat", bd=0,
+                  cursor="hand2", padx=12, command=self._browse_polygons).pack(side="right", ipady=6)
+        tk.Label(dlg, text="Sin polígonos: solo se generan los mapas NDVI y NDRE de todo el ortomosaico.\n"
+                           "Con polígonos: estadísticas, fallas y vigor por celdas dentro de cada lote.",
+                 font=("Calibri", 9), bg=BG_DARK, fg=TEXT_MUTED, justify="left"
+                 ).pack(anchor="w", pady=(4, 10), **pad)
+
+        for label, var in (
+                ("Tamaño de celda de la grilla (m)", self.idx_grid),
+                ("Umbral NDVI de vegetación (vacío = automático)", self.idx_umbral),
+                ("Área mínima de una falla (m²)", self.idx_minfalla)):
+            r = tk.Frame(dlg, bg=BG_DARK)
+            r.pack(fill="x", pady=2, **pad)
+            tk.Label(r, text=label, font=FONT_BODY, bg=BG_DARK, fg=TEXT_MAIN).pack(side="left")
+            tk.Entry(r, textvariable=var, width=10, bg=BG_CARD2, fg=TEXT_MAIN, font=FONT_BODY,
+                     relief="flat", bd=0, insertbackground=TEXT_MAIN, justify="center"
+                     ).pack(side="right", ipady=4)
+
+        self.idx_run_btn = tk.Button(
+            dlg, text="▶  CALCULAR", font=("Trebuchet MS", 11, "bold"), bg=ACCENT, fg=BG_DARK,
+            relief="flat", bd=0, activebackground="#3d9e6b", cursor="hand2", pady=8,
+            command=lambda: self._run_indices_thread(dlg))
+        self.idx_run_btn.pack(fill="x", pady=(16, 6), **pad)
+        tk.Button(dlg, text="📁  Abrir carpeta de índices", font=FONT_BODY, bg=BG_DARK, fg=ACCENT2,
+                  relief="flat", bd=0, cursor="hand2", anchor="w",
+                  command=self._open_indices_folder).pack(fill="x", **pad)
+        tk.Label(dlg, text="El progreso y los resultados aparecen en el log de la ventana principal.",
+                 font=("Calibri", 9), bg=BG_DARK, fg=TEXT_MUTED).pack(anchor="w", pady=(8, 0), **pad)
+
+    def _browse_polygons(self):
+        path = filedialog.askopenfilename(
+            title="Seleccionar polígonos de lote",
+            filetypes=[("Vectores", "*.gpkg *.shp *.geojson"), ("Todos", "*.*")])
+        if path:
+            self.poly_path.set(path)
+
+    def _indices_dir(self):
+        return os.path.join(self._get_output_dir(), "indices_multiespectrales")
+
+    def _open_indices_folder(self):
+        folder = self._indices_dir()
+        if not os.path.isdir(folder):
+            messagebox.showinfo("Sin resultados", "Todavía no se calcularon índices para este lote.")
+            return
+        import subprocess, platform
+        if platform.system() == "Windows":
+            os.startfile(folder)
+        elif platform.system() == "Darwin":
+            subprocess.call(["open", folder])
+        else:
+            subprocess.call(["xdg-open", folder])
+
+    def _run_indices_thread(self, dlg=None):
+        if self._pipeline_running:
+            messagebox.showinfo("Ocupado", "Hay un análisis en curso. Esperá a que termine.")
+            return
+        try:
+            grid = float(self.idx_grid.get().replace(",", "."))
+            minf = float(self.idx_minfalla.get().replace(",", "."))
+            um = self.idx_umbral.get().strip()
+            umbral = float(um.replace(",", ".")) if um else None
+            if grid <= 0 or minf < 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Valores inválidos",
+                                 "Revisá el tamaño de celda, el umbral y el área mínima (deben ser números).")
+            return
+        poly = self.poly_path.get().strip() or None
+        if poly and not os.path.exists(poly):
+            messagebox.showerror("Error", "No se encuentra el archivo de polígonos.")
+            return
+        self._pipeline_running = True
+        self.idx_run_btn.config(state="disabled", text="⏳  Calculando...")
+        self.run_btn.config(state="disabled")
+        threading.Thread(target=self._run_indices,
+                         args=(self.ortho_path.get(), self._indices_dir(), poly, grid, umbral, minf),
+                         daemon=True).start()
+
+    def _run_indices(self, ortho_path, out_dir, poly, grid, umbral, minf):
+        try:
+            self._log("=" * 50, "muted")
+            self._log("ÍNDICES MULTIESPECTRALES (experimental)", "ok")
+            self._log("=" * 50, "muted")
+            self._set_status("Calculando índices...")
+            if poly:
+                from lote import analizar_lotes
+                r = analizar_lotes(ortho_path, poly, out_dir, grid_m=grid, umbral_ndvi=umbral,
+                                   min_falla_m2=minf, log=self._log)
+                self._log(f"Listo: {os.path.join(out_dir, 'lote_analizado.gpkg')}", "ok")
+            else:
+                from indices import calcular_indices
+                r = calcular_indices(ortho_path, out_dir, log=self._log)
+                self._log(f"Listo: {out_dir}", "ok")
+            from indices import AVISO_CALIBRACION
+            self._log(AVISO_CALIBRACION, "warn")
+            self._set_status("Índices listos.")
+        except Exception as e:
+            self._log(f"Error: {e}", "err")
+            import traceback
+            self._log(traceback.format_exc(), "err")
+            self._set_status("Error al calcular índices.")
+        finally:
+            self._pipeline_running = False
+            try:
+                self.idx_run_btn.config(state="normal", text="▶  CALCULAR")
+            except Exception:
+                pass
+            self.run_btn.config(state="normal")
+
     # ── RIGHT CARDS ────────────────────────────────────────────────────────────
 
     def _build_log_card(self, parent):
@@ -625,6 +792,12 @@ class CovioApp(tk.Tk):
                         self._log(f"  GSD real detectado del raster: {actual_gsd_cm:.3f} cm/px (CRS: {crs})", "ok")
                     else:
                         self._log(f"  CRS geográfico o indefinido detectado. Por favor, verificar el GSD manualmente.", "warn")
+                    from indices import detectar_bandas
+                    _b = detectar_bandas(src)
+                    if "nir" in _b:
+                        self._log("  Ortomosaico multiespectral detectado (NIR"
+                                  + (" y RedEdge" if "rededge" in _b else "") + "). "
+                                  "El conteo usa solo R, G y B; para NDVI/NDRE usá el botón 'Índices multiespectrales'.", "ok")
             except Exception as e:
                 self._log(f"  No se pudo auto-detectar el GSD: {e}", "muted")
 
