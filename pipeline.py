@@ -27,6 +27,7 @@ import gc
 import datetime
 import numpy as np
 import pandas as pd
+from indices import bandas_rgb
 
 STEPS = [
     "Cargando ortomosaico y particionando tiles",
@@ -67,6 +68,35 @@ def _close_log(success=True):
         _log_file = None
 
 
+def _estiramiento_global(src, pcts=(2, 98)):
+    """Limites (lo, hi) de un estiramiento unico para ortomosaicos no uint8 (p. ej. uint16 de ODM).
+    Se calcula una vez sobre pixeles validos (!=0) de una vista reducida, para que todos los
+    tiles tengan el mismo brillo. Devuelve None si el raster ya es uint8."""
+    if src.dtypes[0] == "uint8":
+        return None
+    k = max(1, max(src.width, src.height) // 3000)
+    sm = src.read(bandas_rgb(src), out_shape=(3, max(1, src.height // k), max(1, src.width // k)))
+    valid = sm.any(axis=0)
+    if not valid.any():
+        return None
+    lo, hi = np.percentile(sm[:, valid], pcts)
+    if hi <= lo:
+        hi = lo + 1
+    return float(lo), float(hi)
+
+
+def _a_uint8(tile, estiramiento=None):
+    """Convierte un tile a uint8. Con estiramiento global (lo, hi) el brillo es consistente entre
+    tiles; sin el, cae al maximo del tile (comportamiento anterior) evitando dividir por cero."""
+    if tile.dtype == np.uint8:
+        return tile
+    if estiramiento is None:
+        lo, hi = 0.0, float(tile.max()) or 1.0
+    else:
+        lo, hi = estiramiento
+    return np.clip((tile.astype(np.float32) - lo) / (hi - lo) * 255, 0, 255).astype(np.uint8)
+
+
 def preview_tile(ortho_path, models_dir, params, log_fn):
     """
     Procesa un único tile del ortomosaico para validar parámetros.
@@ -94,10 +124,9 @@ def preview_tile(ortho_path, models_dir, params, log_fn):
         # Tomar un tile del centro del lote para que sea representativo
         cx, cy = src.width // 2, src.height // 2
         window = Window(cx - tile_size//2, cy - tile_size//2, tile_size, tile_size)
-        tile = src.read((1, 2, 3), window=window)
+        tile = src.read(bandas_rgb(src), window=window)
         tile = np.moveaxis(tile, 0, -1)
-        if tile.dtype != np.uint8:
-            tile = (tile / tile.max() * 255).astype(np.uint8)
+        tile = _a_uint8(tile, _estiramiento_global(src))
 
     _sam_min_area = max(150, int(np.pi * (params["min_cm"] / (2 * gsd_cm)) ** 2 * 0.5))
     _sam_max_area = min(200000, int(np.pi * (params["max_cm"] / (2 * gsd_cm)) ** 2 * 3.0))
@@ -225,6 +254,7 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
                                compress="lzw")
                 with rasterio.open(resampled_path, "w", **profile) as dst:
                     dst.write(data)
+                    dst.descriptions = src.descriptions  # conserva nombres de banda
                 del data
                 gc.collect()
 
@@ -249,14 +279,19 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
         # Tiling sobre el ortomosaico efectivo (original o remuestreado)
         with rasterio.open(ortho_effective) as src:
             log(f"  Generando tiles de {tile_size}x{tile_size} px...", "muted")
+            estiramiento = _estiramiento_global(src)
+            bandas = bandas_rgb(src)
+            if estiramiento:
+                log(f"  Raster {src.dtypes[0]}: estiramiento unico a 8 bits "
+                    f"({estiramiento[0]:.0f}-{estiramiento[1]:.0f}, percentiles 2-98).", "muted")
             total_tiles = ((h // tile_size) + 1) * ((w // tile_size) + 1)
             count = 0
             for y in range(0, h, tile_size):
                 for x in range(0, w, tile_size):
                     check_stop()
                     window = Window(x, y, min(tile_size, w-x), min(tile_size, h-y))
-                    tile = src.read((1, 2, 3), window=window)
-                    tile = np.moveaxis(tile, 0, -1)
+                    tile = src.read(bandas, window=window)
+                    tile = _a_uint8(np.moveaxis(tile, 0, -1), estiramiento)
                     if tile.shape[0] < tile_size or tile.shape[1] < tile_size:
                         padded = np.zeros((tile_size, tile_size, 3), dtype=tile.dtype)
                         padded[:tile.shape[0], :tile.shape[1]] = tile
@@ -331,8 +366,7 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
         for i, (tile_path, tx, ty) in enumerate(sam_tiles):
             check_stop()
             tile = np.load(tile_path)
-            if tile.dtype != np.uint8:
-                tile = (tile / tile.max() * 255).astype(np.uint8)
+            tile = _a_uint8(tile)
             masks = mask_gen.generate(tile)
             valid = [m for m in masks if _sam_min_area < m["area"] < _sam_max_area]
             total_instances += len(valid)
@@ -384,8 +418,7 @@ def run_full_pipeline(ortho_path, models_dir, output_dir, params,
         for tile_path, tx, ty in tile_paths:
             base_name = os.path.basename(tile_path).replace(".npy", "")
             tile = np.load(tile_path)
-            if tile.dtype != np.uint8:
-                tile = np.clip(tile / tile.max() * 255, 0, 255).astype(np.uint8)
+            tile = _a_uint8(tile)
             cv2.imwrite(os.path.join(ds_images, base_name + ".jpg"),
                         cv2.cvtColor(tile, cv2.COLOR_RGB2BGR))
             src_label = os.path.join(labels_dir, base_name + ".txt")
