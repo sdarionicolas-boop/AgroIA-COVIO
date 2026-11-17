@@ -158,6 +158,7 @@ class CovioApp(tk.Tk):
                  bg=BG_DARK, fg=ACCENT).pack(side="left")
         tk.Label(hdr, text="  v2.1 · Detección de Plantas por Dron",
                  font=FONT_SUB, bg=BG_DARK, fg=TEXT_MUTED).pack(side="left", pady=4)
+        self._build_indices_button(hdr)   # en el encabezado: siempre visible
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x", padx=28)
 
         body = tk.Frame(self, bg=BG_DARK)
@@ -177,7 +178,6 @@ class CovioApp(tk.Tk):
         self._build_params_card(left)
         self._build_sam_card(left)
         self._build_run_button(left)
-        self._build_indices_button(left)
 
         self._build_log_card(right)
         self._build_results_card(right)
@@ -423,11 +423,11 @@ class CovioApp(tk.Tk):
 
     def _build_indices_button(self, parent):
         self.indices_btn = tk.Button(
-            parent, text="🛰  Índices multiespectrales (NDVI / NDRE) — experimental",
-            font=FONT_BODY, bg=BG_CARD2, fg=TEXT_MUTED, relief="flat", bd=0,
-            activebackground=BORDER, cursor="hand2", pady=6,
+            parent, text="🛰  Índices multiespectrales (experimental)",
+            font=FONT_BODY, bg=ACCENT2, fg="white", relief="flat", bd=0,
+            activebackground="#236f8a", cursor="hand2", padx=14, pady=6,
             command=self._open_indices_dialog)
-        self.indices_btn.pack(fill="x", pady=(2, 0))
+        self.indices_btn.pack(side="right")
         self._add_tooltip(self.indices_btn,
                           "Para ortomosaicos multiespectrales (p. ej. WebODM con bandas NIR y RedEdge).\n"
                           "Calcula NDVI/NDRE y, opcionalmente, estadísticas, fallas y vigor por lote.")
