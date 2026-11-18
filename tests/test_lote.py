@@ -258,3 +258,25 @@ def test_advierte_si_las_fallas_ocupan_demasiado_del_lote(tmp_path):
     assert "surcos" in adv[0]                                              # menciona el caso de cultivos en surcos
     txt = open(os.path.join(str(tmp_path / "o"), "LEEME.txt"), encoding="utf-8").read()
     assert "ADVERTENCIA: En mixto las fallas ocupan" in txt
+
+
+def test_la_advertencia_del_umbral_muestra_tres_decimales(tmp_path):
+    """Un valor de 0.697 se mostraba como '0.70 < 0.7' (contradictorio); ahora se ve con tres decimales."""
+    rng = np.random.default_rng(0)
+    n = 200
+    d = np.zeros((3, n, n), "uint8")
+    g = np.clip(rng.normal(130, 25, (n, n)), 60, 220)
+    d[0], d[1], d[2] = 60, g, 60
+    p = str(tmp_path / "u.tif")
+    with rasterio.open(p, "w", driver="GTiff", width=n, height=n, count=3, dtype="uint8", crs="EPSG:32723",
+                       transform=from_origin(500000, 7000100, 0.5, 0.5)) as s:
+        s.write(d)
+    poly = str(tmp_path / "p.gpkg")
+    gpd.GeoDataFrame({"nombre": ["A"]}, geometry=[box(500000, 7000000, 500100, 7000100)],
+                     crs="EPSG:32723").to_file(poly, driver="GPKG")
+    r = lote.analizar_lotes(p, poly, str(tmp_path / "o"), log=lambda *_: None)
+    import re
+    m = re.search(r"separabilidad (\d\.\d+) <", r["advertencias"][0])
+    assert m and len(m.group(1).split(".")[1]) == 3
+    assert float(m.group(1)) < lote.ETA_MIN
+    assert round(float(r["resumen"].iloc[0]["umbral_separacion"]), 3) == float(m.group(1))

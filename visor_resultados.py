@@ -176,8 +176,8 @@ class VisorResultados(tk.Toplevel):
                   cursor="hand2", padx=16, pady=6).pack(side="right")
 
     def _tab_imagen(self, nb, titulo, path):
-        f = tk.Frame(nb, bg="#000")
-        _ImagenAjustada(f, path).pack(fill="both", expand=True)
+        f = tk.Frame(nb, bg=self.c["bg"])
+        _ImagenAjustada(f, path, bg=self.c["bg"]).pack(fill="both", expand=True)
         nb.add(f, text=titulo)
 
     def _tab_tabla(self, nb, tabla):
