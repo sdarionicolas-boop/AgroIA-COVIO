@@ -101,6 +101,10 @@ desde la interfaz, con el ortomosaico ya seleccionado, usando uno de los dos bot
 
 Los dos grupos se mantienen separados: no se mezclan índices RGB con multiespectrales.
 
+Si el ortomosaico está en coordenadas geográficas (grados, p. ej. EPSG:4326), los índices se reproyectan
+automáticamente a la zona UTM local para poder medir áreas y armar la grilla en metros; los lotes pueden estar en
+cualquier sistema de coordenadas. Un ortomosaico sin sistema de coordenadas no se puede analizar por lote.
+
 **Ortomosaicos con bandas sin nombre.** Muchos GeoTIFF multiespectrales (p. ej. exportados por Pix4D o Metashape)
 traen 5 bandas sin descripción, y el programa no puede saber cuál es el rojo o el NIR. Al elegir uno, la aplicación
 abre una ventana para **asignar las bandas** con una sugerencia basada en los valores medios de cada banda (en

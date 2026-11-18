@@ -185,3 +185,52 @@ def test_lote_chico_forma_celdas_con_grilla_automatica(mosaico_rgb, tmp_path):
     r2 = lote.analizar_lotes(mosaico_rgb, poly, str(tmp_path / "o2"), grid_m=10, umbral=0.3, log=lambda *_: None)
     assert r2["resumen"].iloc[0]["celda_m"] == 10                       # una celda fija de 10 m sigue respetandose
     assert r2["resumen"].iloc[0]["n_celdas"] == 1                       # y deja una sola celda: la automatica da mucho mas detalle
+
+
+def test_crs_utm_para_puntos_conocidos():
+    import indices
+    assert indices.crs_utm_para(-91.54, 14.88) == 32615        # Guatemala
+    assert indices.crs_utm_para(-60.0, -33.0) == 32721         # Argentina (hemisferio sur)
+    assert indices.crs_utm_para(3.0, 40.0) == 32631
+    assert indices.crs_utm_para(179.9, 0.0) == 32660
+
+
+@pytest.fixture
+def mosaico_geografico(tmp_path):
+    """RGB en EPSG:4326 (grados), ~1 m/px, cerca de Santa Fe (Argentina): vegetacion con un parche de suelo."""
+    n = 200
+    d = np.zeros((3, n, n), "uint8")
+    d[0], d[1], d[2] = 50, 150, 50
+    d[0, 40:70, 40:70], d[1, 40:70, 40:70], d[2, 40:70, 40:70] = 150, 100, 70
+    p = str(tmp_path / "geo.tif")
+    with rasterio.open(p, "w", driver="GTiff", width=n, height=n, count=3, dtype="uint8", crs="EPSG:4326",
+                       transform=from_origin(-60.00, -33.00, 1e-5, 1e-5)) as s:
+        s.write(d)
+    return p
+
+
+def test_ortomosaico_en_grados_se_analiza_en_metros(mosaico_geografico, tmp_path):
+    import indices
+    poly = str(tmp_path / "pg.gpkg")
+    g = box(-59.9992, -33.0018, -59.9984, -33.0010)                          # en grados
+    gpd.GeoDataFrame({"nombre": ["G"]}, geometry=[g], crs="EPSG:4326").to_file(poly, driver="GPKG")
+    esperada_ha = gpd.GeoSeries([g], crs="EPSG:4326").to_crs("EPSG:32721").area.iloc[0] / 1e4
+    r = lote.analizar_lotes(mosaico_geografico, poly, str(tmp_path / "o"), umbral=0.3, log=lambda *_: None)
+    f = r["resumen"].iloc[0]
+    assert f["area_ha"] == pytest.approx(esperada_ha, rel=0.01)               # area en metros, no en grados
+    assert f["n_celdas"] > 0 and f["celda_m"] >= 1
+    for p in r["indices"]["rutas"].values():                                  # los indices quedan en UTM
+        with rasterio.open(p) as s:
+            assert s.crs.to_epsg() == 32721 and not s.crs.is_geographic and 0.5 < s.res[0] < 2
+    assert gpd.read_file(r["gpkg"]).crs.to_epsg() == 32721
+
+
+def test_sin_crs_da_un_mensaje_claro(tmp_path):
+    n = 20
+    p = str(tmp_path / "sincrs.tif")
+    with rasterio.open(p, "w", driver="GTiff", width=n, height=n, count=3, dtype="uint8") as s:
+        s.write(np.full((3, n, n), 100, "uint8"))
+    poly = str(tmp_path / "p.gpkg")
+    gpd.GeoDataFrame({"nombre": ["A"]}, geometry=[box(0, 0, 10, 10)], crs="EPSG:32721").to_file(poly, driver="GPKG")
+    with pytest.raises(ValueError, match="no tiene sistema de coordenadas"):
+        lote.analizar_lotes(p, poly, str(tmp_path / "o"), log=lambda *_: None)

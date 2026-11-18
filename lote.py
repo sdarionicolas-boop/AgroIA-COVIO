@@ -126,7 +126,10 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=None,
     sv, sg = rasterio.open(rn[vn]), rasterio.open(rn[gn])
     if abs(sv.transform.b) > 1e-9 or abs(sv.transform.d) > 1e-9:
         raise ValueError("Ortomosaico rotado: se espera una grilla norte-arriba (como la de ODM).")
-    if sv.crs is None or sv.crs.is_geographic:
+    if sv.crs is None:
+        raise ValueError("El ortomosaico no tiene sistema de coordenadas (CRS): hace falta un GeoTIFF georreferenciado "
+                         "para ubicar los lotes y medir areas.")
+    if sv.crs.is_geographic:                      # no deberia pasar: calcular_indices reproyecta a UTM
         raise ValueError("Hace falta un CRS proyectado (metros) para medir areas.")
     px = abs(sv.res[0])
 
