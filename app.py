@@ -611,8 +611,6 @@ class CovioApp(tk.Tk):
                 from indices import calcular_indices
                 r = calcular_indices(ortho_path, out_dir, log=self._log)
                 self._log(f"Listo: {out_dir}", "ok")
-            for adv in r.get("advertencias", []):
-                self._log("ADVERTENCIA: " + adv, "warn")
             self._log(r["aviso"], "warn")
             self._set_status("Índices listos.")
             self.after(0, self._ver_resultados)
