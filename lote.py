@@ -119,7 +119,7 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=None,
     log(f"  Umbral {INDICES[vn][0]} de vegetacion: {th:.3f} ({'manual' if umbral is not None else 'automatico, Otsu'})")
     if eta is not None and eta < ETA_MIN:
         msg = (f"El umbral automatico de {INDICES[vn][0]} ({th:.3f}) separa mal vegetacion y suelo en este "
-               f"ortomosaico (distribucion poco bimodal, separabilidad {eta:.2f} < {ETA_MIN}). La cobertura "
+               f"ortomosaico (distribucion poco bimodal, separabilidad {eta:.3f} < {ETA_MIN}). La cobertura "
                "vegetal y las fallas pueden estar distorsionadas: revisa vista.png y fija un umbral manual.")
         advertencias.append(msg)
         log("  ADVERTENCIA: " + msg)
@@ -231,7 +231,7 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=None,
         fila = {"lote": nombre, "area_ha": round(g.area / 1e4, 3),
                 "area_con_datos_ha": round(ok.sum() * px ** 2 / 1e4, 3),
                 "indice_vegetacion": INDICES[vn][0], "indice_vigor": INDICES[gn][0],
-                f"umbral_{vn}": round(th, 3), "umbral_separacion": (round(eta, 2) if eta is not None else None),
+                f"umbral_{vn}": round(th, 3), "umbral_separacion": (round(eta, 3) if eta is not None else None),
                 "cobertura_veg_pct": round(veg.sum() / ok.sum() * 100, 1),
                 kv: r2(nv.mean()) if nv.size else None, f"{vn}_std": r2(nv.std()) if nv.size else None}
         if gn != vn:
