@@ -50,7 +50,25 @@ python app.py
 Al abrir la app: cargá el GeoTIFF, descargá el modelo SAM con el botón del panel "Modelo SAM" y usá primero **"Previsualizar Parámetros (1 Tile)"** para validar GSD y filtros antes de correr el análisis completo. Si algo falla en la instalación, abrí un [issue](https://github.com/sdarionicolas-boop/AgroIA-COVIO/issues) con el mensaje de error.
 
 ### Ejecutable para Windows (opcional)
-No hay ejecutable publicado en los releases. Podés generarlo vos con `python build_exe.py`; queda en `dist/AgroIA-COVIO/AgroIA-COVIO.exe` (distribuí la carpeta completa, no solo el `.exe`).
+No hay ejecutable publicado en los releases. Podés generarlo vos con `python build_exe.py`; queda en
+`dist/AgroIA-COVIO/AgroIA-COVIO.exe` (distribuí la carpeta completa, no solo el `.exe`).
+
+Para que sea chico (~1,1 GB, ~400 MB comprimido) y reproducible, construilo en un **entorno virtual limpio** con solo las
+dependencias del proyecto (si lo construís desde un Python con muchos paquetes instalados, PyInstaller los arrastra a todos):
+
+```bash
+python -m venv build_env
+build_env\Scripts\activate
+pip install -r requirements.txt pyinstaller
+python build_exe.py
+```
+
+Notas del ejecutable:
+- Los modelos (`models/`) y los resultados (`output/`) se crean **junto al `.exe`**. El modelo SAM no viene incluido: se
+  descarga desde el botón del panel "Modelo SAM" la primera vez (hace falta internet).
+- No está firmado: Windows SmartScreen puede mostrar una advertencia la primera vez ("Más información" → "Ejecutar de todas formas").
+- El módulo de índices (NDVI/NDRE, ExG/GLI/VARI) y el conteo de plantas funcionan dentro del ejecutable; verificado con una
+  prueba de humo de las librerías empaquetadas (GeoTIFF, GeoPackage, reproyección, gráficos, PyTorch, SAM).
 
 ---
 
