@@ -158,6 +158,7 @@ class CovioApp(tk.Tk):
                  bg=BG_DARK, fg=ACCENT).pack(side="left")
         tk.Label(hdr, text="  v2.1 · Detección de Plantas por Dron",
                  font=FONT_SUB, bg=BG_DARK, fg=TEXT_MUTED).pack(side="left", pady=4)
+        self._build_indices_button(hdr)   # en el encabezado: siempre visible
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x", padx=28)
 
         body = tk.Frame(self, bg=BG_DARK)
@@ -177,7 +178,6 @@ class CovioApp(tk.Tk):
         self._build_params_card(left)
         self._build_sam_card(left)
         self._build_run_button(left)
-        self._build_indices_button(left)
 
         self._build_log_card(right)
         self._build_results_card(right)
@@ -423,16 +423,20 @@ class CovioApp(tk.Tk):
 
     def _build_indices_button(self, parent):
         self.indices_btn = tk.Button(
-            parent, text="🛰  Índices multiespectrales (NDVI / NDRE) — experimental",
-            font=FONT_BODY, bg=BG_CARD2, fg=TEXT_MUTED, relief="flat", bd=0,
-            activebackground=BORDER, cursor="hand2", pady=6,
+            parent, text="🛰  Índices multiespectrales (experimental)",
+            font=FONT_BODY, bg=ACCENT2, fg="white", relief="flat", bd=0,
+            activebackground="#236f8a", cursor="hand2", padx=14, pady=6,
             command=self._open_indices_dialog)
-        self.indices_btn.pack(fill="x", pady=(2, 0))
+        self.indices_btn.pack(side="right")
         self._add_tooltip(self.indices_btn,
                           "Para ortomosaicos multiespectrales (p. ej. WebODM con bandas NIR y RedEdge).\n"
                           "Calcula NDVI/NDRE y, opcionalmente, estadísticas, fallas y vigor por lote.")
 
     def _open_indices_dialog(self):
+        if self._lote_placeholder or not self.lote_entry.get().strip():
+            messagebox.showerror("Nombre requerido",
+                                 "Ingresá el nombre del cultivo / lote antes de continuar.")
+            return
         ortho = self.ortho_path.get()
         if not ortho or not os.path.exists(ortho):
             messagebox.showerror("Error", "Primero seleccioná un ortomosaico GeoTIFF multiespectral.")
@@ -480,8 +484,11 @@ class CovioApp(tk.Tk):
                  ).pack(side="left", fill="x", expand=True, ipady=6, ipadx=6)
         tk.Button(row, text="Examinar", font=FONT_BODY, bg=ACCENT2, fg="white", relief="flat", bd=0,
                   cursor="hand2", padx=12, command=self._browse_polygons).pack(side="right", ipady=6)
+        tk.Button(dlg, text="✏  Dibujar lotes sobre el mapa…", font=FONT_BODY, bg=ACCENT, fg=BG_DARK,
+                  relief="flat", bd=0, cursor="hand2", padx=12, pady=5,
+                  command=lambda: self._dibujar_lotes(dlg)).pack(anchor="w", pady=(6, 0), **pad)
         tk.Label(dlg, text="Sin polígonos: solo se generan los mapas NDVI y NDRE de todo el ortomosaico.\n"
-                           "Con polígonos: estadísticas, fallas y vigor por celdas dentro de cada lote.",
+                           "Con polígonos (dibujados acá o importados): estadísticas, fallas y vigor por lote.",
                  font=("Calibri", 9), bg=BG_DARK, fg=TEXT_MUTED, justify="left"
                  ).pack(anchor="w", pady=(4, 10), **pad)
 
@@ -506,6 +513,19 @@ class CovioApp(tk.Tk):
                   command=self._open_indices_folder).pack(fill="x", **pad)
         tk.Label(dlg, text="El progreso y los resultados aparecen en el log de la ventana principal.",
                  font=("Calibri", 9), bg=BG_DARK, fg=TEXT_MUTED).pack(anchor="w", pady=(8, 0), **pad)
+
+    def _dibujar_lotes(self, dlg=None):
+        from editor_lotes import EditorLotes
+        out = os.path.join(self._indices_dir(), "lotes_dibujados.gpkg")
+        existing = self.poly_path.get().strip() or (out if os.path.exists(out) else None)
+
+        def guardado(path):
+            self.poly_path.set(path)
+            self._log(f"Lotes dibujados guardados: {path}", "ok")
+
+        EditorLotes(dlg or self, self.ortho_path.get(), out, existing_path=existing, on_saved=guardado,
+                    colors=dict(bg=BG_DARK, card=BG_CARD2, text=TEXT_MAIN, muted=TEXT_MUTED,
+                                accent=ACCENT, accent2=ACCENT2))
 
     def _browse_polygons(self):
         path = filedialog.askopenfilename(

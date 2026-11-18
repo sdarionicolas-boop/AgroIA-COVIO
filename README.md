@@ -96,6 +96,7 @@ seleccionado) o por línea de comandos.
 |---|---|
 | `pipeline.py` | Si el ortomosaico no es de 8 bits (p. ej. uint16 de ODM), aplica un estiramiento único (percentiles 2–98) para que todos los tiles tengan el mismo brillo. Lee R, G y B por nombre de banda. |
 | `indices.py` | Calcula NDVI (NIR, Red) y NDRE (NIR, RedEdge): `python indices.py ORTO.tif SALIDA` |
+| `editor_lotes.py` / `lotes_io.py` | Editor para **dibujar los lotes con el mouse** sobre el mapa (fondo RGB, NDVI o NDRE) desde el botón 🛰 de la interfaz; guarda un GeoPackage. Clic izquierdo = vértice, clic derecho o Enter = cerrar polígono. |
 | `lote.py` | Dentro de polígonos de lote que dibujás vos: estadísticas, fallas y zonificación de vigor en grilla: `python lote.py ORTO.tif LOTES.gpkg SALIDA --grid 10` |
 
 **Cómo leer los resultados**
