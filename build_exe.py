@@ -32,6 +32,8 @@ except ImportError:
     print("Instalando PyInstaller...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
 
+ICONO = "agroia.ico"
+
 cmd = [
     sys.executable, "-m", "PyInstaller",
     "--noconfirm",
@@ -40,7 +42,6 @@ cmd = [
     "--name", "AgroIA-COVIO",
     "--add-data", f"pipeline.py{os.pathsep}.",
     # rasterio
-    "--hidden-import", "rasterio._shim",
     "--hidden-import", "rasterio.control",
     "--hidden-import", "rasterio.crs",
     "--hidden-import", "rasterio.transform",
@@ -51,11 +52,7 @@ cmd = [
     "--collect-all", "geopandas",
     "--hidden-import", "pyogrio",
     "--hidden-import", "pyogrio._geometry",
-    "--hidden-import", "pyogrio._lib",
     "--collect-all", "pyogrio",
-    "--hidden-import", "fiona",
-    "--hidden-import", "fiona.ogrext",
-    "--collect-all", "fiona",
     # pyproj / shapely
     "--hidden-import", "pyproj",
     "--collect-all", "pyproj",
@@ -64,16 +61,25 @@ cmd = [
     # ultralytics + SAM + MobileSAM
     "--hidden-import", "ultralytics",
     "--collect-all", "ultralytics",
+    "--collect-all", "torchvision",
     "--collect-all", "segment_anything",
     "--collect-all", "mobile_sam",
     "--hidden-import", "timm",
     "--collect-all", "timm",
     # otros
     "--hidden-import", "cv2",
-    "--hidden-import", "sklearn",
-    "--hidden-import", "scipy",
+    "--hidden-import", "matplotlib.backends.backend_agg",
+    # modulos propios que app.py importa dentro de funciones
+    "--hidden-import", "indices",
+    "--hidden-import", "lote",
+    "--hidden-import", "lotes_io",
+    "--hidden-import", "editor_lotes",
+    "--hidden-import", "mapa_lote",
+    "--hidden-import", "visor_resultados",
+    "--hidden-import", "asignar_bandas",
     "--hidden-import", "PIL",
     "--hidden-import", "PIL.ImageTk",
+    *(["--icon", ICONO] if os.path.exists(ICONO) else []),
     "app.py",
 ]
 

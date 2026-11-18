@@ -28,9 +28,15 @@ from tkinter import ttk, filedialog, messagebox
 import threading
 import os
 import re
+import sys
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
+# En el ejecutable de Windows (PyInstaller) __file__ apunta a la carpeta interna _internal: los modelos (~2,4 GB) y los
+# resultados deben quedar junto al .exe, no escondidos ahi dentro.
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 os.makedirs(MODELS_DIR, exist_ok=True)
 
