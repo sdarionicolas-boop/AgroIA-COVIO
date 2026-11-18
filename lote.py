@@ -2,60 +2,76 @@
 
 Uso:
     python lote.py ORTOMOSAICO.tif POLIGONOS.gpkg|shp CARPETA_SALIDA [--capa NOMBRE]
-                   [--grid 10] [--umbral-ndvi X] [--min-falla 2]
+                   [--grid 10] [--umbral X] [--min-falla 2]
 
-Por cada poligono: NDVI/NDRE (media, desvio, p10/p90), cobertura vegetal, fallas (manchas de suelo o
-vegetacion muy baja >= --min-falla m2) y una grilla (--grid m) con el vigor relativo de cada celda
-(terciles de NDRE dentro del lote: baja/media/alta).
+Los indices se eligen segun las bandas del ortomosaico:
+  - multiespectral (NIR + Red): vegetacion = NDVI, vigor = NDRE (o NDVI si no hay RedEdge).
+  - RGB comun: vegetacion = ExG, vigor = GLI.
 
-Los valores son RELATIVOS si el ortomosaico no tiene calibracion radiometrica: sirven para comparar
-zonas dentro del mismo vuelo, no entre fechas. El umbral de vegetacion por defecto es automatico (Otsu
-sobre todo el mosaico); fijalo con --umbral-ndvi si el resultado no te convence.
+Por cada poligono: estadisticas de los indices (media, desvio, p10/p90), cobertura vegetal, fallas
+(manchas de suelo o vegetacion muy baja >= --min-falla m2) y una grilla (--grid m) con el vigor relativo
+de cada celda (terciles del indice de vigor dentro del lote: baja/media/alta).
+
+Los valores son RELATIVOS: sirven para comparar zonas dentro del mismo vuelo, no entre fechas. El umbral
+de vegetacion por defecto es automatico (Otsu sobre todo el mosaico); fijalo con --umbral si el
+resultado no te convence.
 """
 import argparse
 import os
 import numpy as np
 
-from indices import AVISO_CALIBRACION, calcular_indices
+from indices import INDICES, aviso_para, calcular_indices, indices_para_lotes
 
 
-_LEEME = AVISO_CALIBRACION + """
+def _leeme(veg, vig, aviso):
+    nv, ng = INDICES[veg][0], INDICES[vig][0]
+    return aviso + f"""
 
 COMO LEER LOS RESULTADOS
-- resumen.csv: una fila por lote (NDVI/NDRE medio, desvio, p10/p90, cobertura, fallas, celdas).
+- Indices usados: {nv} para separar vegetacion de suelo y {ng} para el vigor relativo.
+- resumen.csv: una fila por lote (estadisticas de los indices, cobertura, fallas, celdas).
 - lote_analizado.gpkg: capas lotes, fallas y grilla (abrir en QGIS).
-- Vigor (baja/media/alta): terciles de NDRE ENTRE LAS CELDAS DEL MISMO LOTE. Siempre hay un tercio por
-  clase, aunque el lote sea parejo. Mira cv_ndre_entre_celdas_pct: valores bajos (<10 %) indican que las
+- Vigor (baja/media/alta): terciles de {ng} ENTRE LAS CELDAS DEL MISMO LOTE. Siempre hay un tercio por
+  clase, aunque el lote sea parejo. Mira cv_{vig}_entre_celdas_pct: valores bajos (<10 %) indican que las
   diferencias entre celdas son pequenas.
-- Fallas: manchas de suelo o vegetacion muy baja segun el umbral de NDVI (columna umbral_ndvi). El
+- Fallas: manchas de suelo o vegetacion muy baja segun el umbral de {nv} (columna umbral_{veg}). El
   umbral automatico (Otsu) puede no ser adecuado en cultivos muy densos o muy ralos: revisa vista.png y,
-  si hace falta, fija --umbral-ndvi.
+  si hace falta, fija --umbral.
 - Una falla no implica falta de plantas: puede ser camino, suelo, maleza o un sector senescente.
 """
 
 
 def _otsu(v, bins=256):
+    """Umbral de Otsu y su separabilidad eta (varianza entre clases / varianza total; ~1 = muy bimodal)."""
     h, e = np.histogram(v, bins=bins)
     c = (e[:-1] + e[1:]) / 2
     w0 = np.cumsum(h)
     w1 = w0[-1] - w0
     m0 = np.cumsum(h * c) / np.maximum(w0, 1)
     m1 = (np.sum(h * c) - np.cumsum(h * c)) / np.maximum(w1, 1)
-    return float(c[np.argmax(w0 * w1 * (m0 - m1) ** 2)])
+    sb = w0 * w1 * (m0 - m1) ** 2 / max(1.0, float(w0[-1])) ** 2
+    i = int(np.argmax(sb))
+    var = float(np.var(v))
+    return float(c[i]), (float(sb[i]) / var if var > 0 else 0.0)
 
 
-def _umbral_global(ndvi_path):
+def _umbral_global(path, default=0.3):
+    """(umbral, eta) automaticos sobre todo el mosaico."""
     import rasterio
-    with rasterio.open(ndvi_path) as s:
+    with rasterio.open(path) as s:
         k = max(1, max(s.width, s.height) // 2000)
         v = s.read(1, out_shape=(max(1, s.height // k), max(1, s.width // k)))
     v = v[np.isfinite(v)]
-    return _otsu(v) if v.size else 0.3
+    return _otsu(v) if v.size else (default, 0.0)
+
+
+ETA_MIN = 0.7   # por debajo, la distribucion no es claramente bimodal y el umbral automatico es dudoso
 
 
 def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
-                   umbral_ndvi=None, min_falla_m2=2.0, log=print):
-    """Analiza cada poligono del archivo. Devuelve dict con resumen (DataFrame), gpkg y png."""
+                   umbral=None, min_falla_m2=2.0, log=print, umbral_ndvi=None):
+    """Analiza cada poligono del archivo. Devuelve dict con resumen (DataFrame), gpkg, png, aviso e indices.
+    `umbral_ndvi` se acepta como alias antiguo de `umbral`."""
     import cv2
     import pandas as pd
     import geopandas as gpd
@@ -64,46 +80,59 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
     from rasterio.windows import from_bounds, Window
     from shapely.geometry import shape, box
 
+    if umbral is None:
+        umbral = umbral_ndvi
     os.makedirs(out_dir, exist_ok=True)
-    idx = calcular_indices(ortho_path, os.path.join(out_dir, "indices"), log=log)
+    vn, gn = indices_para_lotes(ortho_path)        # indice de vegetacion e indice de vigor
+    idx = calcular_indices(ortho_path, os.path.join(out_dir, "indices"), log=log,
+                           indices=list(dict.fromkeys([vn, gn])))
     rn = idx["rutas"]
-    if "ndre" not in rn:
-        raise ValueError("Hace falta la banda RedEdge para la zonificacion por NDRE.")
-    th = float(umbral_ndvi) if umbral_ndvi is not None else _umbral_global(rn["ndvi"])
-    log(f"  Umbral NDVI de vegetacion: {th:.3f} ({'manual' if umbral_ndvi is not None else 'automatico, Otsu'})")
+    advertencias = []
+    if umbral is not None:
+        th, eta = float(umbral), None
+    else:
+        th, eta = _umbral_global(rn[vn])
+    log(f"  Umbral {INDICES[vn][0]} de vegetacion: {th:.3f} ({'manual' if umbral is not None else 'automatico, Otsu'})")
+    if eta is not None and eta < ETA_MIN:
+        msg = (f"El umbral automatico de {INDICES[vn][0]} ({th:.3f}) separa mal vegetacion y suelo en este "
+               f"ortomosaico (distribucion poco bimodal, separabilidad {eta:.2f} < {ETA_MIN}). La cobertura "
+               "vegetal y las fallas pueden estar distorsionadas: revisa vista.png y fija un umbral manual.")
+        advertencias.append(msg)
+        log("  ADVERTENCIA: " + msg)
 
-    sn, se = rasterio.open(rn["ndvi"]), rasterio.open(rn["ndre"])
-    if abs(sn.transform.b) > 1e-9 or abs(sn.transform.d) > 1e-9:
+    sv, sg = rasterio.open(rn[vn]), rasterio.open(rn[gn])
+    if abs(sv.transform.b) > 1e-9 or abs(sv.transform.d) > 1e-9:
         raise ValueError("Ortomosaico rotado: se espera una grilla norte-arriba (como la de ODM).")
-    if sn.crs is None or sn.crs.is_geographic:
+    if sv.crs is None or sv.crs.is_geographic:
         raise ValueError("Hace falta un CRS proyectado (metros) para medir areas.")
-    px = abs(sn.res[0])
+    px = abs(sv.res[0])
 
     pol = gpd.read_file(poligonos_path, layer=capa) if capa else gpd.read_file(poligonos_path)
-    pol = pol[pol.geometry.notna() & ~pol.geometry.is_empty].to_crs(sn.crs).reset_index(drop=True)
+    pol = pol[pol.geometry.notna() & ~pol.geometry.is_empty].to_crs(sv.crs).reset_index(drop=True)
     namecol = next((c for c in ("nombre", "name", "Nombre", "NOMBRE") if c in pol.columns), None)
+    kv, kg = f"{vn}_medio", f"{gn}_medio"          # nombres de columna (pueden coincidir si vn == gn)
 
     filas, fallas_l, grilla_l = [], [], []
     for i, r in pol.iterrows():
         nombre = str(r[namecol]) if namecol else f"lote_{i + 1}"
         g = r.geometry
         minx, miny, maxx, maxy = g.bounds
-        win = from_bounds(minx, miny, maxx, maxy, sn.transform).round_offsets().round_lengths()
+        win = from_bounds(minx, miny, maxx, maxy, sv.transform).round_offsets().round_lengths()
         try:
-            win = win.intersection(Window(0, 0, sn.width, sn.height))
+            win = win.intersection(Window(0, 0, sv.width, sv.height))
         except Exception:          # el poligono no toca el ortomosaico
             win = Window(0, 0, 0, 0)
         if win.width < 2 or win.height < 2:
             log(f"  {nombre}: fuera del ortomosaico, se omite")
             continue
-        tr = sn.window_transform(win)
-        ndvi, ndre = sn.read(1, window=win), se.read(1, window=win)
-        dentro = geometry_mask([g], out_shape=ndvi.shape, transform=tr, invert=True)
-        ok = dentro & np.isfinite(ndvi) & np.isfinite(ndre)
+        tr = sv.window_transform(win)
+        iv, ig = sv.read(1, window=win), sg.read(1, window=win)
+        dentro = geometry_mask([g], out_shape=iv.shape, transform=tr, invert=True)
+        ok = dentro & np.isfinite(iv) & np.isfinite(ig)
         if ok.sum() * px ** 2 < 20:
             log(f"  {nombre}: sin datos suficientes dentro del poligono, se omite")
             continue
-        veg = ok & (ndvi >= th)
+        veg = ok & (iv >= th)
         bare = ok & ~veg
 
         # fallas: manchas de suelo / vegetacion muy baja (se quitan las menores a min_falla_m2)
@@ -115,15 +144,15 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
         keep = np.isin(lab, keep_ids)
         for geom, _v in shapes(lab.astype("int32"), mask=keep, transform=tr):
             pg = shape(geom)
-            m = geometry_mask([pg], out_shape=ndvi.shape, transform=tr, invert=True)
-            fallas_l.append(dict(lote=nombre, area_m2=round(pg.area, 1),
-                                 ndvi_medio=round(float(np.nanmean(ndvi[m & ok])), 3) if (m & ok).any() else None,
-                                 geometry=pg))
+            m = geometry_mask([pg], out_shape=iv.shape, transform=tr, invert=True)
+            fallas_l.append({"lote": nombre, "area_m2": round(pg.area, 1),
+                             kv: round(float(np.nanmean(iv[m & ok])), 3) if (m & ok).any() else None,
+                             "geometry": pg})
         n_f = len(keep_ids)
         area_f = float(sum(st[j, cv2.CC_STAT_AREA] for j in keep_ids) * px ** 2)
 
         # grilla de vigor: estadisticas por celda con bincount
-        rows, cols = np.indices(ndvi.shape)
+        rows, cols = np.indices(iv.shape)
         xs = tr.c + (cols + 0.5) * tr.a
         ys = tr.f + (rows + 0.5) * tr.e
         gx = np.floor((xs - minx) / grid_m).astype(int)
@@ -133,8 +162,8 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
         cid = gy * nx + gx
         cnt = np.bincount(cid[ok], minlength=ncell)
         cvg = np.bincount(cid[veg], minlength=ncell)
-        s_re = np.bincount(cid[veg], weights=ndre[veg], minlength=ncell)
-        s_vi = np.bincount(cid[veg], weights=ndvi[veg], minlength=ncell)
+        s_g = np.bincount(cid[veg], weights=ig[veg], minlength=ncell)
+        s_v = np.bincount(cid[veg], weights=iv[veg], minlength=ncell)
         s_bf = np.bincount(cid[keep & ok], minlength=ncell)
         celdas = []
         for c in np.nonzero(cnt)[0]:
@@ -144,42 +173,51 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
             inter = cel.intersection(g)
             if inter.area < 0.5 * grid_m ** 2 or cvg[c] == 0:
                 continue
-            celdas.append(dict(lote=nombre, ndvi_medio=round(float(s_vi[c] / cvg[c]), 3),
-                               ndre_medio=round(float(s_re[c] / cvg[c]), 3),
-                               cobertura_pct=round(float(cvg[c] / cnt[c] * 100), 1),
-                               falla_m2=round(float(s_bf[c] * px ** 2), 1), geometry=inter))
+            d = {"lote": nombre, kv: round(float(s_v[c] / cvg[c]), 3)}
+            d[kg] = round(float(s_g[c] / cvg[c]), 3)
+            d.update(cobertura_pct=round(float(cvg[c] / cnt[c] * 100), 1),
+                     falla_m2=round(float(s_bf[c] * px ** 2), 1), geometry=inter)
+            celdas.append(d)
         q1 = q2 = None
         if len(celdas) >= 3:
-            v = np.array([c["ndre_medio"] for c in celdas])
+            v = np.array([c[kg] for c in celdas])
             q1, q2 = np.percentile(v, [33.3, 66.7])
             for c in celdas:
-                c["vigor"] = "baja" if c["ndre_medio"] < q1 else ("media" if c["ndre_medio"] < q2 else "alta")
+                c["vigor"] = "baja" if c[kg] < q1 else ("media" if c[kg] < q2 else "alta")
         else:
             for c in celdas:
                 c["vigor"] = "n/d"
         grilla_l += celdas
         cv_cel = None
         if len(celdas) >= 2:
-            mu = float(np.mean([c["ndre_medio"] for c in celdas]))
+            mu = float(np.mean([c[kg] for c in celdas]))
             if mu != 0:
-                cv_cel = float(np.std([c["ndre_medio"] for c in celdas]) / abs(mu) * 100)
-        nv, ne = ndvi[veg], ndre[veg]
+                cv_cel = float(np.std([c[kg] for c in celdas]) / abs(mu) * 100)
+        nv, ne = iv[veg], ig[veg]
         r2 = lambda x, d=3: round(float(x), d) if x is not None else None
-        filas.append(dict(
-            lote=nombre, area_ha=round(g.area / 1e4, 3), area_con_datos_ha=round(ok.sum() * px ** 2 / 1e4, 3),
-            umbral_ndvi=round(th, 3), cobertura_veg_pct=round(veg.sum() / ok.sum() * 100, 1),
-            ndvi_medio=r2(nv.mean()) if nv.size else None, ndvi_std=r2(nv.std()) if nv.size else None,
-            ndre_medio=r2(ne.mean()) if ne.size else None, ndre_std=r2(ne.std()) if ne.size else None,
-            ndre_p10=r2(np.percentile(ne, 10)) if ne.size else None,
-            ndre_p90=r2(np.percentile(ne, 90)) if ne.size else None,
-            n_fallas=n_f, area_fallas_m2=round(area_f, 1),
-            fallas_pct=round(area_f / (ok.sum() * px ** 2) * 100, 1),
-            n_celdas=len(celdas), cv_ndre_entre_celdas_pct=r2(cv_cel, 1),
-            ndre_q33=r2(q1), ndre_q67=r2(q2), geometry=g))
-        log(f"  {nombre}: {g.area / 1e4:.2f} ha | NDVI {nv.mean():.2f} | NDRE {ne.mean():.2f} | "
+        fila = {"lote": nombre, "area_ha": round(g.area / 1e4, 3),
+                "area_con_datos_ha": round(ok.sum() * px ** 2 / 1e4, 3),
+                "indice_vegetacion": INDICES[vn][0], "indice_vigor": INDICES[gn][0],
+                f"umbral_{vn}": round(th, 3), "umbral_separacion": (round(eta, 2) if eta is not None else None),
+                "cobertura_veg_pct": round(veg.sum() / ok.sum() * 100, 1),
+                kv: r2(nv.mean()) if nv.size else None, f"{vn}_std": r2(nv.std()) if nv.size else None}
+        if gn != vn:
+            fila[kg] = r2(ne.mean()) if ne.size else None
+            fila[f"{gn}_std"] = r2(ne.std()) if ne.size else None
+        fila[f"{gn}_p10"] = r2(np.percentile(ne, 10)) if ne.size else None
+        fila[f"{gn}_p90"] = r2(np.percentile(ne, 90)) if ne.size else None
+        fila.update(n_fallas=n_f, area_fallas_m2=round(area_f, 1),
+                    fallas_pct=round(area_f / (ok.sum() * px ** 2) * 100, 1),
+                    n_celdas=len(celdas))
+        fila[f"cv_{gn}_entre_celdas_pct"] = r2(cv_cel, 1)
+        fila[f"{gn}_q33"] = r2(q1)
+        fila[f"{gn}_q67"] = r2(q2)
+        fila["geometry"] = g
+        filas.append(fila)
+        log(f"  {nombre}: {g.area / 1e4:.2f} ha | {INDICES[vn][0]} {nv.mean():.2f} | {INDICES[gn][0]} {ne.mean():.2f} | "
             f"cobertura {veg.sum() / ok.sum() * 100:.0f}% | {n_f} fallas ({area_f:.0f} m2) | {len(celdas)} celdas")
-    sn.close()
-    se.close()
+    sv.close()
+    sg.close()
     if not filas:
         raise ValueError("Ningun poligono pudo analizarse.")
 
@@ -194,15 +232,17 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
     if grilla_l:
         gpd.GeoDataFrame(grilla_l, crs=crs).to_file(gpkg, layer="grilla", driver="GPKG")
     pd.DataFrame(gdf.drop(columns="geometry")).to_csv(os.path.join(out_dir, "resumen.csv"), index=False)
-    png = _vista(gdf, grilla_l, fallas_l, rn["ndre"], os.path.join(out_dir, "vista.png"))
+    aviso = aviso_para(idx["indices"])
+    png = _vista(gdf, grilla_l, fallas_l, rn[gn], INDICES[gn][0], os.path.join(out_dir, "vista.png"))
     with open(os.path.join(out_dir, "LEEME.txt"), "w", encoding="utf-8") as f:
-        f.write(_LEEME)
+        f.write(_leeme(vn, gn, aviso) + "".join(chr(10) + "ADVERTENCIA: " + a + chr(10) for a in advertencias))
     log(f"  Resultados en {out_dir}")
-    log("  " + AVISO_CALIBRACION)
-    return dict(resumen=gdf.drop(columns="geometry"), gpkg=gpkg, png=png, indices=idx)
+    log("  " + aviso)
+    return dict(resumen=gdf.drop(columns="geometry"), gpkg=gpkg, png=png, indices=idx, aviso=aviso,
+                indices_usados=(vn, gn), advertencias=advertencias)
 
 
-def _vista(gdf, grilla, fallas, ndre_path, png):
+def _vista(gdf, grilla, fallas, vigor_path, vigor_nombre, png):
     try:
         import rasterio
         import matplotlib
@@ -215,7 +255,7 @@ def _vista(gdf, grilla, fallas, ndre_path, png):
     col = {"baja": "#d73027", "media": "#fee08b", "alta": "#1a9850", "n/d": "#bbbbbb"}
     b = gdf.total_bounds
     m = 10
-    with rasterio.open(ndre_path) as s:
+    with rasterio.open(vigor_path) as s:
         win = from_bounds(b[0] - m, b[1] - m, b[2] + m, b[3] + m, s.transform).round_offsets().round_lengths()
         v = s.read(1, window=win, boundless=True, fill_value=np.nan)
         tr = s.window_transform(win)
@@ -226,9 +266,9 @@ def _vista(gdf, grilla, fallas, ndre_path, png):
         a.imshow(v, cmap="RdYlGn", vmin=np.percentile(f, 2), vmax=np.percentile(f, 98), extent=ext)
         a.set_xticks([])
         a.set_yticks([])
-    ax[0].set_title("NDRE (relativo) y limite del lote")
+    ax[0].set_title(f"{vigor_nombre} (relativo) y limite del lote")
     gdf.boundary.plot(ax=ax[0], color="black", linewidth=1.5)
-    ax[1].set_title("Vigor relativo por celda (terciles de NDRE) y fallas")
+    ax[1].set_title(f"Vigor relativo por celda (terciles de {vigor_nombre}) y fallas")
     if grilla:
         gg = gpd.GeoDataFrame(grilla, crs=gdf.crs)
         gg.plot(ax=ax[1], color=[col[x] for x in gg["vigor"]], edgecolor="white", linewidth=0.3, alpha=0.85)
@@ -252,8 +292,9 @@ if __name__ == "__main__":
     ap.add_argument("salida")
     ap.add_argument("--capa", default=None)
     ap.add_argument("--grid", type=float, default=10.0, help="tamano de celda en metros")
-    ap.add_argument("--umbral-ndvi", type=float, default=None)
+    ap.add_argument("--umbral", "--umbral-ndvi", dest="umbral", type=float, default=None,
+                    help="umbral del indice de vegetacion (vacio = automatico)")
     ap.add_argument("--min-falla", type=float, default=2.0, help="area minima de una falla en m2")
     a = ap.parse_args()
     analizar_lotes(a.tif, a.poligonos, a.salida, capa=a.capa, grid_m=a.grid,
-                   umbral_ndvi=a.umbral_ndvi, min_falla_m2=a.min_falla)
+                   umbral=a.umbral, min_falla_m2=a.min_falla)

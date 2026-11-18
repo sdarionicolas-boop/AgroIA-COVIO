@@ -55,7 +55,7 @@ class EditorLotes(tk.Toplevel):
             return b
 
         tk.Label(bar, text="Fondo:", bg=c["bg"], fg=c["muted"]).pack(side="left", padx=(0, 2))
-        for txt, val in (("RGB", "rgb"), ("NDVI", "ndvi"), ("NDRE", "ndre")):
+        for txt, val in self._fondos():
             tk.Radiobutton(bar, text=txt, value=val, variable=self.modo, command=self._cambiar_fondo,
                            bg=c["bg"], fg=c["text"], selectcolor=c["card"], activebackground=c["bg"],
                            activeforeground=c["text"]).pack(side="left")
@@ -96,6 +96,14 @@ class EditorLotes(tk.Toplevel):
         tk.Button(foot, text="Cancelar", command=self.destroy, bg=c["card"], fg=c["text"], relief="flat", bd=0,
                   cursor="hand2", padx=12, pady=6).pack(side="right", padx=6)
         self._msg()
+
+    def _fondos(self):
+        """Fondos ofrecidos: RGB y los indices que permiten las bandas del ortomosaico."""
+        import rasterio
+        from indices import INDICES, detectar_bandas, indices_disponibles
+        with rasterio.open(self.ortho_path) as src:
+            disp = indices_disponibles(detectar_bandas(src))
+        return [("RGB", "rgb")] + [(INDICES[i][0], i) for i in disp]
 
     def _msg(self, extra=""):
         n = len(self.polys)

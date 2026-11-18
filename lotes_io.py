@@ -10,14 +10,15 @@ import numpy as np
 def vista_previa(ortho_path, modo="rgb", max_px=1600):
     """Imagen reducida (uint8, HxWx3) del ortomosaico para dibujar sobre ella.
 
-    modo: 'rgb' (bandas R,G,B con estiramiento 2-98) | 'ndvi' | 'ndre' (mapa de color).
+    modo: 'rgb' (bandas R,G,B con estiramiento 2-98) o el nombre de un indice de indices.INDICES
+    (ndvi, ndre, exg, gli, vari; mapa de color).
     Devuelve dict(img, transform, crs, size): `transform` lleva pixeles de la vista previa a
     coordenadas del mapa (CRS del ortomosaico).
     """
     import rasterio
     from rasterio.enums import Resampling
     from rasterio.transform import Affine
-    from indices import detectar_bandas, bandas_rgb
+    from indices import INDICES, detectar_bandas, bandas_rgb, formula, mascara_valida
 
     with rasterio.open(ortho_path) as src:
         k = max(1.0, max(src.width, src.height) / max_px)
@@ -45,17 +46,15 @@ def vista_previa(ortho_path, modo="rgb", max_px=1600):
                     hi = lo + 1
                 img = np.clip((rgb - lo) / (hi - lo) * 255, 0, 255).astype("uint8")
         else:
-            falta = [n for n in ("red", "nir") + (("rededge",) if modo == "ndre" else ()) if n not in b]
+            if modo not in INDICES:
+                raise ValueError(f"Indice desconocido: {modo}")
+            falta = [n for n in INDICES[modo][1] if n not in b]
             if falta:
                 raise ValueError(f"Faltan bandas para {modo.upper()}: {falta}")
-            N = leer(b["nir"])
-            D = leer(b["red" if modo == "ndvi" else "rededge"])
+            B = {n: leer(b[n]) for n in INDICES[modo][1]}
             if valido is None:
-                valido = (N > 0) | (D > 0)
-            s = N + D
-            ok = valido & (s > 0)
-            idx = np.full(N.shape, np.nan, "float32")
-            idx[ok] = (N[ok] - D[ok]) / s[ok]
+                valido = mascara_valida(B, None)
+            idx = formula(modo, B, valido)
             f = idx[np.isfinite(idx)]
             lo, hi = (np.percentile(f, (2, 98)) if f.size else (0.0, 1.0))
             if hi <= lo:
@@ -64,6 +63,7 @@ def vista_previa(ortho_path, modo="rgb", max_px=1600):
             cmap = matplotlib.colormaps["RdYlGn"]
             norm = np.clip((np.nan_to_num(idx, nan=lo) - lo) / (hi - lo), 0, 1)
             img = (cmap(norm)[..., :3] * 255).astype("uint8")
+            valido = valido & np.isfinite(idx)
         img[~valido] = 30   # sin datos: gris oscuro
         tr = src.transform * Affine.scale(src.width / ow, src.height / oh)
         return dict(img=img, transform=tr, crs=src.crs, size=(ow, oh))
