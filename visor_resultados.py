@@ -21,7 +21,7 @@ _ETIQUETAS = {
     "cobertura_veg_pct": "Cobertura vegetal (%)", "n_fallas": "Nº de fallas",
     "umbral_separacion": "Separación del umbral (0–1; <0,7 = dudoso)",
     "pct_area_baja": "Celdas de vigor bajo (% del área)", "pct_area_normal": "Celdas de vigor normal (% del área)",
-    "pct_area_alta": "Celdas de vigor alto (% del área)", "desvio_min_abs": "Desvío mínimo para clasificar (valor)", "area_fallas_m2": "Área de fallas (m²)", "fallas_pct": "Fallas (% del lote)", "n_celdas": "Nº de celdas",
+    "pct_area_alta": "Celdas de vigor alto (% del área)", "desvio_min_abs": "Desvío mínimo para clasificar (valor)", "area_fallas_m2": "Área de fallas (m²)", "fallas_pct": "Fallas (% del lote)", "n_celdas": "Nº de celdas", "celda_m": "Tamaño de celda (m)",
 }
 
 

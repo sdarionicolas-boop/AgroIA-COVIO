@@ -73,10 +73,24 @@ Z_MIN = 1.5         # y desvios robustos (MAD) respecto de las demas celdas (si 
 ETA_MIN = 0.7   # por debajo, la distribucion no es claramente bimodal y el umbral automatico es dudoso
 
 
-def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
+def _celda_auto(area_m2, px):
+    """Tamano de celda (m) para un lote segun su superficie: el mayor de 10, 5, 3, 2, 1, 0.5 o 0.25 m que deje al
+    menos ~16 celdas (lado del lote / 4) y no baje de ~6 pixeles. Un lote grande usa 10 m; uno chico (p. ej. de
+    lechuga) usa celdas mas finas en lugar de quedarse sin celdas."""
+    lado = max(area_m2, 0.0) ** 0.5
+    for c in (10, 5, 3, 2, 1, 0.5, 0.25):
+        if c <= lado / 4:
+            break
+    else:
+        c = 0.25
+    return round(max(c, 6 * px), 3)
+
+
+def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=None,
                    umbral=None, min_falla_m2=2.0, log=print, umbral_ndvi=None, modo=None, desvio_min=DESVIO_MIN):
     """Analiza cada poligono del archivo. Devuelve dict con resumen (DataFrame), gpkg, png, aviso e indices.
     `modo`: 'multi' (NDVI/NDRE), 'rgb' (ExG/GLI) o None (automatico segun las bandas).
+    `grid_m`: tamano de celda en metros; None = automatico segun la superficie de cada lote (ver _celda_auto).
     `desvio_min`: fraccion del rango del indice de vigor que una celda debe apartarse de la mediana del
     lote para clasificarse baja/alta (el resto es normal). `umbral_ndvi` es un alias antiguo de `umbral`."""
     import cv2
@@ -161,13 +175,14 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
         area_f = float(sum(st[j, cv2.CC_STAT_AREA] for j in keep_ids) * px ** 2)
 
         # grilla de vigor: estadisticas por celda con bincount
+        gm = float(grid_m) if grid_m else _celda_auto(g.area, px)
         rows, cols = np.indices(iv.shape)
         xs = tr.c + (cols + 0.5) * tr.a
         ys = tr.f + (rows + 0.5) * tr.e
-        gx = np.floor((xs - minx) / grid_m).astype(int)
-        gy = np.floor((ys - miny) / grid_m).astype(int)
-        nx = int((maxx - minx) // grid_m) + 1
-        ncell = (int((maxy - miny) // grid_m) + 1) * nx
+        gx = np.floor((xs - minx) / gm).astype(int)
+        gy = np.floor((ys - miny) / gm).astype(int)
+        nx = int((maxx - minx) // gm) + 1
+        ncell = (int((maxy - miny) // gm) + 1) * nx
         cid = gy * nx + gx
         cnt = np.bincount(cid[ok], minlength=ncell)
         cvg = np.bincount(cid[veg], minlength=ncell)
@@ -177,10 +192,10 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
         celdas = []
         for c in np.nonzero(cnt)[0]:
             cy_, cx_ = divmod(int(c), nx)
-            cel = box(minx + cx_ * grid_m, miny + cy_ * grid_m,
-                      minx + (cx_ + 1) * grid_m, miny + (cy_ + 1) * grid_m)
+            cel = box(minx + cx_ * gm, miny + cy_ * gm,
+                      minx + (cx_ + 1) * gm, miny + (cy_ + 1) * gm)
             inter = cel.intersection(g)
-            if inter.area < 0.5 * grid_m ** 2 or cvg[c] == 0:
+            if inter.area < 0.5 * gm ** 2 or cvg[c] == 0:
                 continue
             d = {"lote": nombre, kv: round(float(s_v[c] / cvg[c]), 3)}
             d[kg] = round(float(s_g[c] / cvg[c]), 3)
@@ -222,7 +237,7 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
         fila[f"{gn}_p90"] = r2(np.percentile(ne, 90)) if ne.size else None
         fila.update(n_fallas=n_f, area_fallas_m2=round(area_f, 1),
                     fallas_pct=round(area_f / (ok.sum() * px ** 2) * 100, 1),
-                    n_celdas=len(celdas))
+                    n_celdas=len(celdas), celda_m=gm)
         fila[f"cv_{gn}_entre_celdas_pct"] = r2(cv_cel, 1)
         fila[f"{gn}_mediana_celdas"] = r2(med)
         fila["desvio_min_abs"] = r2(gate) if med is not None else None
@@ -309,7 +324,8 @@ if __name__ == "__main__":
     ap.add_argument("poligonos")
     ap.add_argument("salida")
     ap.add_argument("--capa", default=None)
-    ap.add_argument("--grid", type=float, default=10.0, help="tamano de celda en metros")
+    ap.add_argument("--grid", type=float, default=None,
+                    help="tamano de celda en metros (por defecto: automatico segun la superficie del lote)")
     ap.add_argument("--umbral", "--umbral-ndvi", dest="umbral", type=float, default=None,
                     help="umbral del indice de vegetacion (vacio = automatico)")
     ap.add_argument("--min-falla", type=float, default=2.0, help="area minima de una falla en m2")

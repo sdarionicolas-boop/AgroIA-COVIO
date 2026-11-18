@@ -520,7 +520,7 @@ class CovioApp(tk.Tk):
         tk.Button(dlg, text="Bandas…", font=FONT_BODY, bg=BG_CARD2, fg=TEXT_MUTED, relief="flat", bd=0, cursor="hand2",
                   padx=10, pady=3, command=lambda: self._reasignar_bandas(dlg, modo)).place(relx=1.0, x=-14, y=14, anchor="ne")
         self.poly_path = tk.StringVar(value="")
-        self.idx_grid = tk.StringVar(value="10")
+        self.idx_grid = tk.StringVar(value="")
         self.idx_umbral = tk.StringVar(value="")
         self.idx_minfalla = tk.StringVar(value="2")
 
@@ -554,7 +554,7 @@ class CovioApp(tk.Tk):
                  ).pack(anchor="w", pady=(4, 10), **pad)
 
         for label, var in (
-                ("Tamaño de celda de la grilla (m)", self.idx_grid),
+                ("Tamaño de celda de la grilla (m) (vacío = automático)", self.idx_grid),
                 (f"Umbral {INDICES[veg_n][0]} de vegetación (vacío = automático)", self.idx_umbral),
                 ("Área mínima de una falla (m²)", self.idx_minfalla)):
             r = tk.Frame(dlg, bg=BG_DARK)
@@ -631,11 +631,12 @@ class CovioApp(tk.Tk):
             messagebox.showinfo("Ocupado", "Hay un análisis en curso. Esperá a que termine.")
             return
         try:
-            grid = float(self.idx_grid.get().replace(",", "."))
+            g_txt = self.idx_grid.get().strip()
+            grid = float(g_txt.replace(",", ".")) if g_txt else None
             minf = float(self.idx_minfalla.get().replace(",", "."))
             um = self.idx_umbral.get().strip()
             umbral = float(um.replace(",", ".")) if um else None
-            if grid <= 0 or minf < 0:
+            if (grid is not None and grid <= 0) or minf < 0:
                 raise ValueError
         except ValueError:
             messagebox.showerror("Valores inválidos",

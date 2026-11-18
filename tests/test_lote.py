@@ -163,3 +163,25 @@ def test_lote_con_bloque_bajo_marca_solo_esas_celdas(tmp_path):
     assert bajas.geometry.centroid.x.max() < 500035 and bajas.geometry.centroid.y.between(7000020, 7000050).all()
     f = r["resumen"].iloc[0]
     assert 0 < f["pct_area_baja"] < 50 and f["pct_area_normal"] > 50
+
+
+def test_celda_automatica_segun_la_superficie():
+    assert lote._celda_auto(10000, 0.5) == 10          # 1 ha -> 10 m (como antes)
+    assert lote._celda_auto(2000, 0.05) == 10          # 0.2 ha
+    assert lote._celda_auto(1000, 0.05) == 5           # 0.1 ha
+    assert lote._celda_auto(130, 0.05) == 2            # lote chico de lechuga (~130 m2): lado 11.4 m -> 2 m
+    assert lote._celda_auto(4, 0.01) == 0.5            # 2 x 2 m
+    assert lote._celda_auto(130, 1.0) == 6             # nunca menos de ~6 pixeles
+
+
+def test_lote_chico_forma_celdas_con_grilla_automatica(mosaico_rgb, tmp_path):
+    poly = str(tmp_path / "p.gpkg")
+    # 12 x 12 m dentro del mosaico: con celdas fijas de 10 m queda una sola celda (o ninguna si el lote es irregular)
+    gpd.GeoDataFrame({"nombre": ["chico"]}, geometry=[box(500020, 7000020, 500032, 7000032)],
+                     crs="EPSG:32723").to_file(poly, driver="GPKG")
+    r = lote.analizar_lotes(mosaico_rgb, poly, str(tmp_path / "o"), umbral=0.3, log=lambda *_: None)
+    f = r["resumen"].iloc[0]
+    assert f["celda_m"] == 3 and f["n_celdas"] >= 9
+    r2 = lote.analizar_lotes(mosaico_rgb, poly, str(tmp_path / "o2"), grid_m=10, umbral=0.3, log=lambda *_: None)
+    assert r2["resumen"].iloc[0]["celda_m"] == 10                       # una celda fija de 10 m sigue respetandose
+    assert r2["resumen"].iloc[0]["n_celdas"] == 1                       # y deja una sola celda: la automatica da mucho mas detalle
