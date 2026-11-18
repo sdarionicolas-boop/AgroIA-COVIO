@@ -10,6 +10,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import indices, lote, visor_resultados
 
 
+def _tk_o_skip():
+    """Crea una raiz Tk; reintenta (a veces falla de forma intermitente) y, si no se puede, omite con el motivo."""
+    import time
+    tk = pytest.importorskip("tkinter")
+    err = None
+    for _ in range(4):
+        try:
+            return tk.Tk()
+        except tk.TclError as e:
+            err = e
+            time.sleep(0.4)
+    pytest.skip(f"sin entorno grafico: {err}")
+
+
 def _rgb(tmp_path):
     d = np.zeros((3, 200, 200), "uint8")
     d[0], d[1], d[2] = 50, 150, 50
@@ -45,10 +59,7 @@ def test_cargar_carpeta_con_lotes(tmp_path):
 
 def test_visor_se_abre(tmp_path):
     tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("sin entorno grafico")
+    root = _tk_o_skip()
     root.withdraw()
     out = str(tmp_path / "o")
     indices.calcular_indices(_rgb(tmp_path), out, log=lambda *_: None)
@@ -75,10 +86,7 @@ def test_mapa_lote_datos_y_valores(tmp_path):
     assert d["vigor"] == "gli" and set(d["tifs"]) == {"exg", "gli"} and len(d["grilla"]) == 25
     assert mapa_lote.cargar_datos(str(tmp_path / "vacio")) is None
     tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("sin entorno grafico")
+    root = _tk_o_skip()
     root.geometry("900x600")
     f = tk.Frame(root); f.pack(fill="both", expand=True)
     m = mapa_lote.MapaLote(f, out)
@@ -88,11 +96,18 @@ def test_mapa_lote_datos_y_valores(tmp_path):
     z0 = m.z
     m._zoom_en(2.0, 200, 200)
     assert m.z == pytest.approx(z0 * 2)
-    # hover en el centro: una celda con sus valores
+    # hover en el centro: valor EXACTO de cada indice + datos de la celda
     col, row = m.inv * (500050, 7000050)
     ev = type("E", (), {"x": int((col - m.ox) * m.z), "y": int((row - m.oy) * m.z)})()
     m._on_move(ev)
-    assert "GLI" in m.info.get() and "EXG" not in m.info.get()
+    m._atender_mov()                                   # el movimiento se atiende con un retardo corto
+    txt = m.info.get()
+    assert "ExG 0.800" in txt and "GLI 0.500" in txt          # (2g-r-b)/s y (2G-R-B)/(2G+R+B) de (50,150,50)
+    assert "celda de A" in txt and "X 500,050.0" in txt
+    # fuera del mosaico: sin dato, y no rompe
+    assert "sin dato" in m.texto_en(400000, 6000000)
+    # fuera de las celdas pero dentro del mosaico
+    assert "fuera de las celdas" in m.texto_en(500150, 7000050) or "sin dato" in m.texto_en(500150, 7000050)
     for k in ("exg", "gli"):
         m.fondo.set(k)
         m._dibujar()

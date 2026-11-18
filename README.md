@@ -104,8 +104,9 @@ Los dos grupos se mantienen separados: no se mezclan índices RGB con multiespec
 **En la interfaz** se puede, sin salir de la aplicación: dibujar los lotes con el mouse sobre el mapa (fondo RGB
 o cualquiera de los índices), calcular, y ver los resultados en un visor con el mapa del lote, los índices del
 ortomosaico, la tabla y las notas. El mapa del lote es interactivo: zoom con la rueda, desplazar arrastrando,
-capas que se prenden y apagan (índice de fondo, celdas con su valor, clases, fallas, límite) y los valores de
-cada celda al pasar el mouse. Al terminar también quedan los archivos en la carpeta de resultados
+capas que se prenden y apagan (índice de fondo, celdas con su valor, clases, fallas, límite) y al pasar el mouse,
+las coordenadas, el **valor exacto de cada índice en ese píxel** (leído del archivo del índice, no de la
+imagen reducida) y los datos de la celda (cobertura, falla, clase). Al terminar también quedan los archivos en la carpeta de resultados
 (`indices_multiespectral` o `indices_rgb`, según el botón).
 
 | Herramienta | Qué hace |

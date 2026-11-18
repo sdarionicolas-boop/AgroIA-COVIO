@@ -56,6 +56,9 @@ def cargar_datos(out_dir):
 
 
 class MapaLote(tk.Frame):
+    AYUDA = ("Rueda: zoom | arrastrar: desplazar\n"
+             "Pasá el mouse sobre el mapa para ver el valor exacto de cada índice en ese punto")
+
     def __init__(self, parent, out_dir, colors=None):
         c = dict(bg="#0F1923", card="#1A2535", text="#E8EDF2", muted="#7A8FA6", accent="#4CAF82", accent2="#2E86AB")
         c.update(colors or {})
@@ -76,7 +79,9 @@ class MapaLote(tk.Frame):
         self.v_clases = tk.BooleanVar(value=False)
         self.v_fallas = tk.BooleanVar(value=True)
         self.v_limite = tk.BooleanVar(value=True)
-        self.info = tk.StringVar(value="Rueda: zoom | arrastrar: desplazar | pasá el mouse sobre una celda para ver sus valores")
+        self._ds = {}            # indice -> dataset rasterio abierto (lectura exacta de pixel)
+        self._mov = None         # ultimo evento de mouse pendiente (se atiende con un pequeño retardo)
+        self.info = tk.StringVar(value=self.AYUDA)
         self._build()
         self._preparar()
         self._primera = True
@@ -131,13 +136,14 @@ class MapaLote(tk.Frame):
                       cursor="hand2").pack(side="right", padx=2)
         self.canvas = tk.Canvas(self, bg="#101820", highlightthickness=0, cursor="fleur")
         self.canvas.pack(fill="both", expand=True)
-        tk.Label(self, textvariable=self.info, bg=c["bg"], fg=c["muted"], anchor="w", font=("Calibri", 10)
-                 ).pack(fill="x", pady=(4, 0))
+        tk.Label(self, textvariable=self.info, bg=c["bg"], fg=c["text"], anchor="w", justify="left",
+                 font=("Consolas", 10), height=2).pack(fill="x", pady=(4, 0))
         cv = self.canvas
         cv.bind("<MouseWheel>", self._on_wheel)
         cv.bind("<ButtonPress-1>", self._on_press)
         cv.bind("<B1-Motion>", self._on_drag)
         cv.bind("<Motion>", self._on_move)
+        cv.bind("<Leave>", lambda e: self.info.set(self.AYUDA))
 
     # ── composicion de la imagen ─────────────────────────────────────────
     def _compuesta(self):
@@ -245,23 +251,58 @@ class MapaLote(tk.Frame):
             self._dibujar()
 
     # ── valores al pasar el mouse ────────────────────────────────────────
+    def _valor_exacto(self, clave, x, y):
+        """Valor del indice en el pixel del ortomosaico bajo (x, y) (coordenadas del mapa); None si no hay dato."""
+        import rasterio
+        ds = self._ds.get(clave)
+        if ds is None:
+            ds = self._ds[clave] = rasterio.open(self.d["tifs"][clave])
+        try:
+            v = next(ds.sample([(x, y)]))[0]
+        except Exception:
+            return None
+        return float(v) if np.isfinite(v) else None
+
     def _on_move(self, e):
-        if not self._celdas:
+        # se atiende con un retardo corto para no leer el archivo en cada pixel de movimiento
+        pendiente = self._mov is not None
+        self._mov = (e.x, e.y)
+        if not pendiente:
+            self.after(45, self._atender_mov)
+
+    def _atender_mov(self):
+        if self._mov is None:
             return
+        ex, ey = self._mov
+        self._mov = None
+        col, row = ex / self.z + self.ox, ey / self.z + self.oy
+        x, y = self.tr * (col, row)
+        self.info.set(self.texto_en(x, y))
+
+    def texto_en(self, x, y):
+        """Texto para el punto (x, y) del mapa: coordenadas, valor exacto de cada indice y datos de la celda."""
         from shapely.geometry import Point
-        col, row = e.x / self.z + self.ox, e.y / self.z + self.oy
-        pt = Point(*(self.tr * (col, row)))
+        vals = []
+        hay = False
+        for k in self.d["tifs"]:
+            v = self._valor_exacto(k, x, y)
+            hay = hay or v is not None
+            vals.append(f"{INDICES[k][0]} {v:.3f}" if v is not None else f"{INDICES[k][0]} s/d")
+        l1 = f"X {x:,.1f}  Y {y:,.1f}   |   " + "   ".join(vals) if hay else f"X {x:,.1f}  Y {y:,.1f}   |   sin dato en este punto"
+        l2 = "fuera de las celdas analizadas"
+        pt = Point(x, y)
         for g, r in self._celdas:
             if g.contains(pt):
-                partes = [f"{r.get('lote')}"]
-                for k in self.d["tifs"]:
-                    v = r.get(f"{k}_medio")
-                    if v is not None and np.isfinite(v):
-                        partes.append(f"{INDICES[k][0]} {v:.3f}")
-                partes.append(f"cobertura {r.get('cobertura_pct')} %")
-                partes.append(f"falla {r.get('falla_m2')} m²")
-                if r.get("vigor") is not None:
-                    partes.append(f"clase: {r.get('vigor')}")
-                self.info.set("   |   ".join(partes))
-                return
-        self.info.set("Rueda: zoom | arrastrar: desplazar | pasá el mouse sobre una celda para ver sus valores")
+                l2 = (f"celda de {r.get('lote')}: cobertura {r.get('cobertura_pct')} %   falla {r.get('falla_m2')} m²"
+                      + (f"   clase {r.get('vigor')}" if r.get("vigor") is not None else ""))
+                break
+        return l1 + "\n" + l2
+
+    def destroy(self):
+        for ds in self._ds.values():
+            try:
+                ds.close()
+            except Exception:
+                pass
+        self._ds = {}
+        super().destroy()
