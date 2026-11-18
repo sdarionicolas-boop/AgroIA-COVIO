@@ -297,6 +297,42 @@ def mascara_valida(arrs, alpha):
     return v
 
 
+def crs_utm_para(lon, lat):
+    """EPSG de la zona UTM (WGS84) que corresponde a un punto en grados."""
+    zona = int((lon + 180) // 6) % 60 + 1
+    return 32600 + zona if lat >= 0 else 32700 + zona
+
+
+def proyectar_si_geografico(path, log=print):
+    """Si el raster esta en coordenadas geograficas (grados), lo reproyecta en el lugar a la zona UTM local (metros)
+    para poder medir areas y armar grillas. Devuelve el EPSG usado, o None si no hizo falta."""
+    import rasterio
+    from rasterio.crs import CRS
+    from rasterio.enums import Resampling
+    from rasterio.warp import calculate_default_transform, reproject
+
+    with rasterio.open(path) as s:
+        if s.crs is None or not s.crs.is_geographic:
+            return None
+        b = s.bounds
+        epsg = crs_utm_para((b.left + b.right) / 2, (b.bottom + b.top) / 2)
+        dst_crs = CRS.from_epsg(epsg)
+        tr, w, h = calculate_default_transform(s.crs, dst_crs, s.width, s.height, *s.bounds)
+        out = np.full((h, w), np.nan, dtype="float32")
+        reproject(source=rasterio.band(s, 1), destination=out, src_transform=s.transform, src_crs=s.crs,
+                  src_nodata=np.nan, dst_transform=tr, dst_crs=dst_crs, dst_nodata=np.nan,
+                  resampling=Resampling.bilinear)
+        prof = s.profile.copy()
+    prof.update(crs=dst_crs, transform=tr, width=w, height=h, dtype="float32", nodata=np.nan, count=1,
+                compress="deflate", tiled=True, blockxsize=512, blockysize=512)
+    tmp = path + ".utm.tmp"
+    with rasterio.open(tmp, "w", **prof) as d:
+        d.write(out, 1)
+    os.replace(tmp, path)
+    log(f"  Coordenadas geograficas (grados): los indices se reproyectaron a UTM (EPSG:{epsg}, metros) para medir areas.")
+    return epsg
+
+
 def calcular_indices(ortho_path, out_dir, log=print, block=1024, indices=None, modo=None):
     """Calcula los indices (por defecto los que corresponden a las bandas del raster) por bloques.
     Devuelve dict(rutas, stats, png, aviso, indices); lanza ValueError si no hay bandas suficientes."""
@@ -342,6 +378,8 @@ def calcular_indices(ortho_path, out_dir, log=print, block=1024, indices=None, m
         finally:
             for d in dst.values():
                 d.close()
+    for p in rutas.values():                      # los resultados quedan siempre en un CRS proyectado (metros)
+        proyectar_si_geografico(p, log)
     stats = {}
     for k, l in sm.items():
         if l:
