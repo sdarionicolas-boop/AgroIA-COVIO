@@ -57,3 +57,45 @@ def test_visor_se_abre(tmp_path):
     assert len(v.winfo_children()) > 0
     v.destroy()
     root.destroy()
+
+
+def _analizar(tmp_path):
+    out = str(tmp_path / "o")
+    poly = str(tmp_path / "p.gpkg")
+    gpd.GeoDataFrame({"nombre": ["A"]}, geometry=[box(500000, 7000000, 500100, 7000100)],
+                     crs="EPSG:32723").to_file(poly, driver="GPKG")
+    lote.analizar_lotes(_rgb(tmp_path), poly, out, grid_m=20, umbral=0.3, log=lambda *_: None)
+    return out
+
+
+def test_mapa_lote_datos_y_valores(tmp_path):
+    import mapa_lote
+    out = _analizar(tmp_path)
+    d = mapa_lote.cargar_datos(out)
+    assert d["vigor"] == "gli" and set(d["tifs"]) == {"exg", "gli"} and len(d["grilla"]) == 25
+    assert mapa_lote.cargar_datos(str(tmp_path / "vacio")) is None
+    tk = pytest.importorskip("tkinter")
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("sin entorno grafico")
+    root.geometry("900x600")
+    f = tk.Frame(root); f.pack(fill="both", expand=True)
+    m = mapa_lote.MapaLote(f, out)
+    m.pack(fill="both", expand=True)
+    root.update()
+    m._ajustar()
+    z0 = m.z
+    m._zoom_en(2.0, 200, 200)
+    assert m.z == pytest.approx(z0 * 2)
+    # hover en el centro: una celda con sus valores
+    col, row = m.inv * (500050, 7000050)
+    ev = type("E", (), {"x": int((col - m.ox) * m.z), "y": int((row - m.oy) * m.z)})()
+    m._on_move(ev)
+    assert "GLI" in m.info.get() and "EXG" not in m.info.get()
+    for k in ("exg", "gli"):
+        m.fondo.set(k)
+        m._dibujar()
+    m.v_clases.set(True)
+    m._dibujar()
+    root.destroy()

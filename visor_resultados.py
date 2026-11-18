@@ -13,6 +13,7 @@ from tkinter import ttk
 import cv2
 
 from indices import INDICES, aviso_para
+from mapa_lote import MapaLote
 
 _ETIQUETAS = {
     "area_ha": "Área del polígono (ha)", "area_con_datos_ha": "Área con datos (ha)",
@@ -126,6 +127,9 @@ class VisorResultados(tk.Toplevel):
                         rowheight=24, borderwidth=0)
         style.configure("Visor.Treeview.Heading", background=c["bg"], foreground=c["accent"], relief="flat")
         style.map("Visor.Treeview", background=[("selected", c["accent2"])])
+        style.configure("TNotebook", background=c["bg"], borderwidth=0)
+        style.configure("TNotebook.Tab", background=c["card"], foreground=c["muted"], padding=(14, 6), borderwidth=0)
+        style.map("TNotebook.Tab", background=[("selected", c["accent2"])], foreground=[("selected", "#ffffff")])
 
         tk.Label(self, text="Resultados de índices", font=("Trebuchet MS", 14, "bold"), bg=c["bg"], fg=c["accent"]
                  ).pack(anchor="w", padx=14, pady=(12, 0))
@@ -140,7 +144,15 @@ class VisorResultados(tk.Toplevel):
 
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True, padx=14)
-        if self.res["mapa"]:
+        if self.res["gpkg"]:
+            f = tk.Frame(nb, bg=c["bg"])
+            m = MapaLote(f, out_dir, colors=c)
+            m.pack(fill="both", expand=True, padx=6, pady=6)
+            if m.d is not None:
+                nb.add(f, text="🗺  Mapa del lote")
+            elif self.res["mapa"]:
+                self._tab_imagen(nb, "🗺  Mapa del lote", self.res["mapa"])
+        elif self.res["mapa"]:
             self._tab_imagen(nb, "🗺  Mapa del lote", self.res["mapa"])
         if self.res["indices_png"]:
             self._tab_imagen(nb, "🛰  Índices del ortomosaico", self.res["indices_png"])

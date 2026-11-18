@@ -234,7 +234,7 @@ def _vista_previa(rutas, png, log):
         a.set_title(INDICES[k][0] + " (valores relativos)")
         a.axis("off")
         fig.colorbar(im, ax=a, shrink=0.7)
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    fig.tight_layout(rect=(0, 0.04, 1, 0.95))
     fig.text(0.5, 0.012, "Relativo: comparable solo dentro de este vuelo; sin calibracion verificada ni validacion de campo.",
              ha="center", fontsize=9, color="#444")
     fig.savefig(png, dpi=100)

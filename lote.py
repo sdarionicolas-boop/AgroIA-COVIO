@@ -277,7 +277,7 @@ def _vista(gdf, grilla, fallas, vigor_path, vigor_nombre, png):
     gdf.boundary.plot(ax=ax[1], color="black", linewidth=1.5)
     ax[1].set_xlim(ext[0], ext[1])
     ax[1].set_ylim(ext[2], ext[3])
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    fig.tight_layout(rect=(0, 0.04, 1, 0.95))
     fig.text(0.5, 0.012, "Valores relativos: comparables solo dentro de este vuelo. Zonas por terciles: siempre hay un tercio por clase.",
              ha="center", fontsize=9, color="#444")
     fig.savefig(png, dpi=100)
