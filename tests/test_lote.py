@@ -111,3 +111,13 @@ def test_advierte_si_el_umbral_automatico_separa_mal(tmp_path):
     # con umbral manual no se advierte
     r2 = lote.analizar_lotes(p, poly, str(tmp_path / "o2"), umbral=0.3, log=lambda *_: None)
     assert r2["advertencias"] == []
+
+
+def test_lote_modo_rgb_sobre_multiespectral(mosaico, tmp_path):
+    """Un multiespectral analizado en modo RGB usa ExG/GLI y no NDVI/NDRE."""
+    poly = str(tmp_path / "p.gpkg")
+    gpd.GeoDataFrame({"nombre": ["A"]}, geometry=[box(500000, 7000000, 500100, 7000100)],
+                     crs="EPSG:32723").to_file(poly, driver="GPKG")
+    r = lote.analizar_lotes(mosaico, poly, str(tmp_path / "o"), umbral=0.0, modo="rgb", log=lambda *_: None)
+    assert r["indices_usados"] == ("exg", "gli") and "exg_medio" in r["resumen"].columns
+    assert "ndvi_medio" not in r["resumen"].columns

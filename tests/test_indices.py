@@ -105,3 +105,29 @@ def test_alpha_sin_nombre_se_detecta_por_colorinterp():
     src = NS(count=6, descriptions=("Red", "Green", "Blue", "NIR", "Rededge", None),
              colorinterp=[ci("red"), ci("green"), ci("blue"), ci("gray"), ci("gray"), ci("alpha")])
     assert indices.detectar_bandas(src)["alpha"] == 6
+
+
+def test_modos_multi_y_rgb():
+    multi = dict(red=1, green=2, blue=3, nir=4, rededge=5)
+    assert indices.indices_disponibles(multi, "multi") == ["ndvi", "ndre"]
+    assert indices.indices_disponibles(multi, "rgb") == ["exg", "gli", "vari"]   # un multiespectral tambien tiene RGB
+    assert indices.indices_disponibles(multi) == ["ndvi", "ndre"]                  # automatico: multiespectral
+    rgb = dict(red=1, green=2, blue=3)
+    assert indices.indices_disponibles(rgb, "multi") == []
+    assert indices.indices_disponibles(rgb, "rgb") == ["exg", "gli", "vari"]
+
+
+def test_calcular_indices_con_modo(tmp_path):
+    p = str(tmp_path / "m.tif")
+    d = np.zeros((6, 8, 8), "uint16")
+    d[0], d[1], d[2], d[3], d[4], d[5] = 100, 150, 80, 300, 200, 255
+    _crear(p, ["Red", "Green", "Blue", "NIR", "Rededge", "alpha"], d)
+    r = indices.calcular_indices(p, str(tmp_path / "a"), modo="rgb", log=lambda *_: None)     # RGB sobre un multiespectral
+    assert r["indices"] == ["exg", "gli", "vari"] and "RGB" in r["aviso"]
+    r = indices.calcular_indices(p, str(tmp_path / "b"), modo="multi", log=lambda *_: None)
+    assert r["indices"] == ["ndvi", "ndre"]
+    prgb = str(tmp_path / "rgb.tif")
+    with rasterio.open(prgb, "w", driver="GTiff", width=4, height=4, count=3, dtype="uint8") as s:
+        s.write(np.ones((3, 4, 4), "uint8"))
+    with pytest.raises(ValueError, match="NIR"):
+        indices.calcular_indices(prgb, str(tmp_path / "c"), modo="multi", log=lambda *_: None)

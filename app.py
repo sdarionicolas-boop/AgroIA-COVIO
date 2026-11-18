@@ -422,17 +422,28 @@ class CovioApp(tk.Tk):
         self.main_progress.pack(fill="x", pady=(4, 0))
 
     def _build_indices_button(self, parent):
+        """Dos botones separados: uno para ortomosaicos multiespectrales y otro para RGB."""
+        self.indices_btn_rgb = tk.Button(
+            parent, text="🎨  Índices RGB (ExG / GLI / VARI)",
+            font=FONT_BODY, bg=BG_CARD2, fg=TEXT_MAIN, relief="flat", bd=0,
+            activebackground=BORDER, cursor="hand2", padx=12, pady=6,
+            command=lambda: self._open_indices_dialog("rgb"))
+        self.indices_btn_rgb.pack(side="right", padx=(6, 0))
         self.indices_btn = tk.Button(
-            parent, text="🛰  Índices de vegetación (experimental)",
+            parent, text="🛰  Índices multiespectrales (NDVI / NDRE)",
             font=FONT_BODY, bg=ACCENT2, fg="white", relief="flat", bd=0,
-            activebackground="#236f8a", cursor="hand2", padx=14, pady=6,
-            command=self._open_indices_dialog)
+            activebackground="#236f8a", cursor="hand2", padx=12, pady=6,
+            command=lambda: self._open_indices_dialog("multi"))
         self.indices_btn.pack(side="right")
         self._add_tooltip(self.indices_btn,
-                          "Multiespectral (NIR/RedEdge): NDVI y NDRE.  RGB común: ExG, GLI y VARI.\n"
-                          "Dibujá lotes sobre el mapa y mirá estadísticas, fallas y vigor sin salir de la app.")
+                          "Para ortomosaicos con banda NIR (p. ej. WebODM con MicaSense RedEdge-M).\n"
+                          "Calcula NDVI y NDRE; dibujá lotes y mirá los resultados sin salir de la app. Experimental.")
+        self._add_tooltip(self.indices_btn_rgb,
+                          "Para ortomosaicos RGB comunes (3 bandas visibles).\n"
+                          "Calcula ExG, GLI y VARI; son más sensibles a la cámara y la iluminación. Experimental.")
 
-    def _open_indices_dialog(self):
+    def _open_indices_dialog(self, modo="multi"):
+        self._idx_modo = modo
         if self._lote_placeholder or not self.lote_entry.get().strip():
             messagebox.showerror("Nombre requerido",
                                  "Ingresá el nombre del cultivo / lote antes de continuar.")
@@ -446,22 +457,27 @@ class CovioApp(tk.Tk):
             from indices import INDICES, detectar_bandas, indices_disponibles, roles
             with rasterio.open(ortho) as src:
                 b = detectar_bandas(src)
-            disp = indices_disponibles(b)
+            disp = indices_disponibles(b, modo)
             if not disp:
-                messagebox.showerror(
-                    "Bandas no reconocidas",
-                    "No se pudieron identificar las bandas del ortomosaico.\n"
-                    "Hace falta un GeoTIFF RGB (3 bandas) o multiespectral con Red y NIR por nombre.")
+                if modo == "multi":
+                    messagebox.showerror(
+                        "No es multiespectral",
+                        "Este ortomosaico no tiene las bandas NIR y Red (por nombre) que necesitan NDVI y NDRE.\n"
+                        "Si es un ortomosaico RGB común, usá el botón 'Índices RGB'.")
+                else:
+                    messagebox.showerror(
+                        "Bandas RGB no encontradas",
+                        "No se encontraron las bandas R, G y B en este ortomosaico (3 bandas, o con nombre).")
                 return
-            multi = "ndvi" in disp
+            multi = modo == "multi"
             veg_n, _vig_n = roles(disp)
-            tipo = ("Multiespectral" if multi else "RGB común") + ": " + ", ".join(INDICES[i][0] for i in disp)
+            tipo = ("Multiespectral" if multi else "RGB") + ": " + ", ".join(INDICES[i][0] for i in disp)
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo leer el ortomosaico:\n{e}")
             return
 
         dlg = tk.Toplevel(self)
-        dlg.title("Índices de vegetación (experimental)")
+        dlg.title("Índices multiespectrales (experimental)" if multi else "Índices RGB (experimental)")
         dlg.configure(bg=BG_DARK)
         dlg.geometry("560x540")
         dlg.transient(self)
@@ -472,7 +488,7 @@ class CovioApp(tk.Tk):
         self.idx_minfalla = tk.StringVar(value="2")
 
         pad = {"padx": 16}
-        tk.Label(dlg, text="Índices de vegetación", font=("Trebuchet MS", 14, "bold"),
+        tk.Label(dlg, text="Índices multiespectrales" if multi else "Índices RGB", font=("Trebuchet MS", 14, "bold"),
                  bg=BG_DARK, fg=ACCENT).pack(anchor="w", pady=(14, 0), **pad)
         tk.Label(dlg, text=f"Se calcularán: {tipo}", font=FONT_BODY, bg=BG_DARK, fg=TEXT_MAIN
                  ).pack(anchor="w", pady=(0, 4), **pad)
@@ -525,8 +541,8 @@ class CovioApp(tk.Tk):
         tk.Label(dlg, text="Al terminar se abre el visor de resultados; el avance se ve en el log principal.",
                  font=("Calibri", 9), bg=BG_DARK, fg=TEXT_MUTED).pack(anchor="w", pady=(8, 0), **pad)
 
-    def _ver_resultados(self):
-        folder = self._indices_dir()
+    def _ver_resultados(self, modo=None):
+        folder = self._indices_dir(modo)
         if not os.path.isdir(folder):
             messagebox.showinfo("Sin resultados", "Todavía no se calcularon índices para este lote.")
             return
@@ -544,6 +560,7 @@ class CovioApp(tk.Tk):
             self._log(f"Lotes dibujados guardados: {path}", "ok")
 
         EditorLotes(dlg or self, self.ortho_path.get(), out, existing_path=existing, on_saved=guardado,
+                    modo=getattr(self, "_idx_modo", None),
                     colors=dict(bg=BG_DARK, card=BG_CARD2, text=TEXT_MAIN, muted=TEXT_MUTED,
                                 accent=ACCENT, accent2=ACCENT2))
 
@@ -554,8 +571,10 @@ class CovioApp(tk.Tk):
         if path:
             self.poly_path.set(path)
 
-    def _indices_dir(self):
-        return os.path.join(self._get_output_dir(), "indices_vegetacion")
+    def _indices_dir(self, modo=None):
+        """Carpeta de resultados segun el modo (multi / rgb): conviven si se calculan los dos."""
+        modo = modo or getattr(self, "_idx_modo", "multi")
+        return os.path.join(self._get_output_dir(), "indices_multiespectral" if modo == "multi" else "indices_rgb")
 
     def _open_indices_folder(self):
         folder = self._indices_dir()
@@ -593,27 +612,27 @@ class CovioApp(tk.Tk):
         self.idx_run_btn.config(state="disabled", text="⏳  Calculando...")
         self.run_btn.config(state="disabled")
         threading.Thread(target=self._run_indices,
-                         args=(self.ortho_path.get(), self._indices_dir(), poly, grid, umbral, minf),
+                         args=(self.ortho_path.get(), self._indices_dir(), poly, grid, umbral, minf, self._idx_modo),
                          daemon=True).start()
 
-    def _run_indices(self, ortho_path, out_dir, poly, grid, umbral, minf):
+    def _run_indices(self, ortho_path, out_dir, poly, grid, umbral, minf, modo=None):
         try:
             self._log("=" * 50, "muted")
-            self._log("ÍNDICES DE VEGETACIÓN (experimental)", "ok")
+            self._log("ÍNDICES " + ("MULTIESPECTRALES" if modo == "multi" else "RGB") + " (experimental)", "ok")
             self._log("=" * 50, "muted")
             self._set_status("Calculando índices...")
             if poly:
                 from lote import analizar_lotes
-                r = analizar_lotes(ortho_path, poly, out_dir, grid_m=grid, umbral=umbral,
+                r = analizar_lotes(ortho_path, poly, out_dir, grid_m=grid, umbral=umbral, modo=modo,
                                    min_falla_m2=minf, log=self._log)
                 self._log(f"Listo: {os.path.join(out_dir, 'lote_analizado.gpkg')}", "ok")
             else:
                 from indices import calcular_indices
-                r = calcular_indices(ortho_path, out_dir, log=self._log)
+                r = calcular_indices(ortho_path, out_dir, log=self._log, modo=modo)
                 self._log(f"Listo: {out_dir}", "ok")
             self._log(r["aviso"], "warn")
             self._set_status("Índices listos.")
-            self.after(0, self._ver_resultados)
+            self.after(0, lambda: self._ver_resultados(modo))
         except Exception as e:
             self._log(f"Error: {e}", "err")
             import traceback
@@ -837,9 +856,9 @@ class CovioApp(tk.Tk):
                     if "nir" in _b:
                         self._log("  Ortomosaico multiespectral detectado (NIR"
                                   + (" y RedEdge" if "rededge" in _b else "") + "). "
-                                  "El conteo usa solo R, G y B; para NDVI/NDRE usá el botón 'Índices de vegetación'.", "ok")
+                                  "El conteo usa solo R, G y B; para NDVI/NDRE usá el botón 'Índices multiespectrales'.", "ok")
                     elif all(k in _b for k in ("red", "green", "blue")):
-                        self._log("  Ortomosaico RGB: además del conteo, el botón 'Índices de vegetación' "
+                        self._log("  Ortomosaico RGB: además del conteo, el botón 'Índices RGB' "
                                   "calcula ExG, GLI y VARI.", "muted")
             except Exception as e:
                 self._log(f"  No se pudo auto-detectar el GSD: {e}", "muted")

@@ -69,8 +69,9 @@ ETA_MIN = 0.7   # por debajo, la distribucion no es claramente bimodal y el umbr
 
 
 def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
-                   umbral=None, min_falla_m2=2.0, log=print, umbral_ndvi=None):
+                   umbral=None, min_falla_m2=2.0, log=print, umbral_ndvi=None, modo=None):
     """Analiza cada poligono del archivo. Devuelve dict con resumen (DataFrame), gpkg, png, aviso e indices.
+    `modo`: 'multi' (NDVI/NDRE), 'rgb' (ExG/GLI) o None (automatico segun las bandas).
     `umbral_ndvi` se acepta como alias antiguo de `umbral`."""
     import cv2
     import pandas as pd
@@ -83,9 +84,9 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
     if umbral is None:
         umbral = umbral_ndvi
     os.makedirs(out_dir, exist_ok=True)
-    vn, gn = indices_para_lotes(ortho_path)        # indice de vegetacion e indice de vigor
+    vn, gn = indices_para_lotes(ortho_path, modo)  # indice de vegetacion e indice de vigor
     idx = calcular_indices(ortho_path, os.path.join(out_dir, "indices"), log=log,
-                           indices=list(dict.fromkeys([vn, gn])))
+                           indices=list(dict.fromkeys([vn, gn])), modo=modo)
     rn = idx["rutas"]
     advertencias = []
     if umbral is not None:
@@ -295,6 +296,8 @@ if __name__ == "__main__":
     ap.add_argument("--umbral", "--umbral-ndvi", dest="umbral", type=float, default=None,
                     help="umbral del indice de vegetacion (vacio = automatico)")
     ap.add_argument("--min-falla", type=float, default=2.0, help="area minima de una falla en m2")
+    ap.add_argument("--modo", choices=("multi", "rgb"), default=None,
+                    help="multi = NDVI/NDRE, rgb = ExG/GLI (por defecto: automatico segun las bandas)")
     a = ap.parse_args()
     analizar_lotes(a.tif, a.poligonos, a.salida, capa=a.capa, grid_m=a.grid,
-                   umbral=a.umbral, min_falla_m2=a.min_falla)
+                   umbral=a.umbral, min_falla_m2=a.min_falla, modo=a.modo)
