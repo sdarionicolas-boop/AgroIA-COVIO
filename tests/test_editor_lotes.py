@@ -9,6 +9,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import lotes_io
 
 
+def _tk_o_skip():
+    """Crea una raiz Tk; reintenta (a veces falla de forma intermitente) y, si no se puede, omite con el motivo."""
+    import time
+    tk = pytest.importorskip("tkinter")
+    err = None
+    for _ in range(4):
+        try:
+            return tk.Tk()
+        except tk.TclError as e:
+            err = e
+            time.sleep(0.4)
+    pytest.skip(f"sin entorno grafico: {err}")
+
+
 @pytest.fixture
 def mosaico(tmp_path):
     """100x100 m a 0.5 m/px, 6 bandas (R,G,B,NIR,RE,alpha), esquina superior izquierda en (500000, 7000100)."""
@@ -53,10 +67,7 @@ def test_poligono_con_menos_de_3_vertices_falla(mosaico, tmp_path):
 
 def _tk():
     tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("sin entorno grafico")
+    root = _tk_o_skip()
     root.withdraw()
     return root
 
