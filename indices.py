@@ -80,14 +80,22 @@ def bandas_rgb(src):
     return (1, 2, 3)
 
 
-def indices_disponibles(bandas):
+MODOS = ("multi", "rgb")
+
+
+def indices_disponibles(bandas, modo=None):
     """Indices que se pueden calcular con las bandas dadas (dict de detectar_bandas).
-    Multiespectral (NIR + Red) -> NDVI y NDRE; si no, RGB -> ExG, GLI y VARI. Nunca se mezclan."""
-    if "nir" in bandas and "red" in bandas:
-        return ["ndvi"] + (["ndre"] if "rededge" in bandas else [])
-    if all(k in bandas for k in ("red", "green", "blue")):
-        return ["exg", "gli", "vari"]
-    return []
+
+    modo='multi': NDVI (y NDRE si hay RedEdge) -> exige NIR y Red.
+    modo='rgb':   ExG, GLI y VARI -> exige R, G y B (sirve tambien en un multiespectral, usando sus bandas visibles).
+    modo=None:    automatico: multiespectral si hay NIR + Red, si no RGB. Los dos grupos nunca se mezclan."""
+    multi = ["ndvi"] + (["ndre"] if "rededge" in bandas else []) if ("nir" in bandas and "red" in bandas) else []
+    rgb = ["exg", "gli", "vari"] if all(k in bandas for k in ("red", "green", "blue")) else []
+    if modo == "multi":
+        return multi
+    if modo == "rgb":
+        return rgb
+    return multi or rgb
 
 
 def roles(disponibles):
@@ -100,14 +108,23 @@ def roles(disponibles):
     raise ValueError("No hay indices disponibles para analizar.")
 
 
-def indices_para_lotes(ortho_path):
-    """(indice_vegetacion, indice_vigor) que usa el analisis por lote para este ortomosaico."""
+def _sin_bandas(modo, descripciones=None):
+    if modo == "multi":
+        return ("Este ortomosaico no tiene las bandas NIR y Red (por nombre), necesarias para NDVI/NDRE. "
+                "Si es un ortomosaico RGB, usa los indices RGB.")
+    if modo == "rgb":
+        return "No se encontraron las bandas R, G y B (3 bandas o por nombre) para los indices RGB."
+    return ("No se pudieron identificar las bandas: hace falta RGB (3 bandas) o multiespectral con "
+            f"Red y NIR por nombre (descripciones: {descripciones}).")
+
+
+def indices_para_lotes(ortho_path, modo=None):
+    """(indice_vegetacion, indice_vigor) que usa el analisis por lote para este ortomosaico y modo."""
     import rasterio
     with rasterio.open(ortho_path) as src:
-        disp = indices_disponibles(detectar_bandas(src))
+        disp = indices_disponibles(detectar_bandas(src), modo)
     if not disp:
-        raise ValueError("No se pudieron identificar las bandas: hace falta RGB (3 bandas) o "
-                         "multiespectral con Red y NIR por nombre.")
+        raise ValueError(_sin_bandas(modo))
     return roles(disp)
 
 
@@ -152,7 +169,7 @@ def mascara_valida(arrs, alpha):
     return v
 
 
-def calcular_indices(ortho_path, out_dir, log=print, block=1024, indices=None):
+def calcular_indices(ortho_path, out_dir, log=print, block=1024, indices=None, modo=None):
     """Calcula los indices (por defecto los que corresponden a las bandas del raster) por bloques.
     Devuelve dict(rutas, stats, png, aviso, indices); lanza ValueError si no hay bandas suficientes."""
     import rasterio
@@ -161,11 +178,9 @@ def calcular_indices(ortho_path, out_dir, log=print, block=1024, indices=None):
     os.makedirs(out_dir, exist_ok=True)
     with rasterio.open(ortho_path) as src:
         b = detectar_bandas(src)
-        disp = indices_disponibles(b)
+        disp = indices_disponibles(b, modo)
         if not disp:
-            raise ValueError(
-                "No se pudieron identificar las bandas: hace falta RGB (3 bandas) o multiespectral con "
-                f"Red y NIR por nombre (descripciones: {src.descriptions}).")
+            raise ValueError(_sin_bandas(modo, src.descriptions))
         indices = list(indices) if indices else disp
         mal = [i for i in indices if i not in disp]
         if mal:
@@ -234,7 +249,7 @@ def _vista_previa(rutas, png, log):
         a.set_title(INDICES[k][0] + " (valores relativos)")
         a.axis("off")
         fig.colorbar(im, ax=a, shrink=0.7)
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    fig.tight_layout(rect=(0, 0.04, 1, 0.95))
     fig.text(0.5, 0.012, "Relativo: comparable solo dentro de este vuelo; sin calibracion verificada ni validacion de campo.",
              ha="center", fontsize=9, color="#444")
     fig.savefig(png, dpi=100)

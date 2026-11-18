@@ -17,13 +17,14 @@ _COLORES = ["#ffd400", "#00e5ff", "#ff6bd6", "#9cff57", "#ff9f40", "#b388ff"]
 
 
 class EditorLotes(tk.Toplevel):
-    def __init__(self, parent, ortho_path, out_path, existing_path=None, on_saved=None, colors=None):
+    def __init__(self, parent, ortho_path, out_path, existing_path=None, on_saved=None, colors=None, modo=None):
         super().__init__(parent)
         c = dict(bg="#0F1923", card="#1A2535", text="#E8EDF2", muted="#7A8FA6", accent="#4CAF82", accent2="#2E86AB")
         c.update(colors or {})
         self.c = c
         self.ortho_path, self.out_path, self.existing_path = ortho_path, out_path, existing_path
         self.on_saved = on_saved
+        self.modo_indices = modo
         self.title("Dibujar lotes")
         self.configure(bg=c["bg"])
         self.geometry("1100x780")
@@ -102,7 +103,7 @@ class EditorLotes(tk.Toplevel):
         import rasterio
         from indices import INDICES, detectar_bandas, indices_disponibles
         with rasterio.open(self.ortho_path) as src:
-            disp = indices_disponibles(detectar_bandas(src))
+            disp = indices_disponibles(detectar_bandas(src), self.modo_indices)
         return [("RGB", "rgb")] + [(INDICES[i][0], i) for i in disp]
 
     def _msg(self, extra=""):

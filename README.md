@@ -90,7 +90,9 @@ PlantDetector/
 Además del conteo de plantas, el repositorio incluye herramientas para calcular **índices de vegetación**,
 tanto en ortomosaicos **multiespectrales** (p. ej. MicaSense RedEdge-M procesado con WebODM/ODM) como en
 ortomosaicos **RGB** comunes. **Es un módulo experimental: no está validado con datos de campo.** Se usa
-desde la interfaz (botón **🛰 Índices de vegetación**, con el ortomosaico ya seleccionado) o por línea de comandos.
+desde la interfaz, con el ortomosaico ya seleccionado, usando uno de los dos botones del encabezado —
+**🛰 Índices multiespectrales (NDVI / NDRE)** o **🎨 Índices RGB (ExG / GLI / VARI)**— o por línea de comandos
+(`--modo multi|rgb`). El botón RGB también sirve para un ortomosaico multiespectral (usa sus bandas visibles).
 
 | Ortomosaico | Índices | Vegetación / vigor |
 |---|---|---|
@@ -101,7 +103,10 @@ Los dos grupos se mantienen separados: no se mezclan índices RGB con multiespec
 
 **En la interfaz** se puede, sin salir de la aplicación: dibujar los lotes con el mouse sobre el mapa (fondo RGB
 o cualquiera de los índices), calcular, y ver los resultados en un visor con el mapa del lote, los índices del
-ortomosaico, la tabla y las notas. Al terminar también quedan los archivos en la carpeta de resultados.
+ortomosaico, la tabla y las notas. El mapa del lote es interactivo: zoom con la rueda, desplazar arrastrando,
+capas que se prenden y apagan (índice de fondo, celdas con su valor, clases, fallas, límite) y los valores de
+cada celda al pasar el mouse. Al terminar también quedan los archivos en la carpeta de resultados
+(`indices_multiespectral` o `indices_rgb`, según el botón).
 
 | Herramienta | Qué hace |
 |---|---|
@@ -110,6 +115,7 @@ ortomosaico, la tabla y las notas. Al terminar también quedan los archivos en l
 | `editor_lotes.py` / `lotes_io.py` | Editor para **dibujar los lotes con el mouse** (clic izquierdo = vértice, clic derecho o Enter = cerrar polígono); guarda un GeoPackage. |
 | `lote.py` | Dentro de los polígonos de lote: estadísticas, fallas y zonificación de vigor en grilla: `python lote.py ORTO.tif LOTES.gpkg SALIDA --grid 10` |
 | `visor_resultados.py` | Visor de resultados dentro de la interfaz (mapa, índices, tabla y notas). |
+| `mapa_lote.py` | Mapa interactivo de los lotes analizados (zoom, capas, valores por celda) que usa el visor. |
 
 **Cómo leer los resultados**
 - Los índices son **relativos**. Sirven para comparar zonas dentro de un mismo vuelo; no para comparar
@@ -117,9 +123,12 @@ ortomosaico, la tabla y las notas. Al terminar también quedan los archivos en l
   calibración radiométrica verificada (el archivo no permite comprobarlo).
 - Los índices **RGB** son además más sensibles a la cámara, la hora del día, las sombras y el brillo del
   ortomosaico, y no distinguen bien vegetación verde de otras superficies verdes ni vegetación senescente.
-- La zonificación (baja/media/alta) usa terciles del índice de vigor **dentro de cada lote**: siempre hay un
-  tercio por clase, aunque el lote sea parejo. Mirá `cv_<índice>_entre_celdas_pct` en `resumen.csv`: si es
-  bajo (< 10 %), las diferencias son pequeñas.
+- La zonificación por celdas muestra el valor medio del índice de vigor y una clase **baja / normal / alta**.
+  Una celda es baja o alta solo si se aparta de la mediana del lote al menos un 10 % del rango del índice en
+  todo el ortomosaico (`--desvio-min`) y además al menos 1,5 desvíos robustos respecto de las demás celdas;
+  si no, es normal. Un lote parejo queda casi todo "normal". Esos umbrales son arbitrarios y no están
+  validados con datos de campo. Mirá también `cv_<índice>_entre_celdas_pct` y `pct_area_baja/normal/alta`
+  en `resumen.csv`.
 - Una "falla" es una mancha de suelo o vegetación muy baja según un umbral del índice de vegetación
   (automático, Otsu, o fijado con `--umbral`). No implica falta de plantas: puede ser camino, maleza o un
   sector senescente. Revisá `vista.png`.

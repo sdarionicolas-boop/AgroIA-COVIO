@@ -102,3 +102,43 @@ def cargar_poligonos_px(path, transform, crs):
         nombres.append(str(r[namecol]) if namecol else f"lote_{i + 1}")
         polys.append([tuple(inv * (x, y)) for x, y in list(g.exterior.coords)[:-1]])
     return nombres, polys
+
+
+def colorear(valores, lo, hi, cmap="RdYlGn"):
+    """Valores float (NaN = sin dato) -> imagen RGB uint8 con el mapa de color; sin dato = gris oscuro."""
+    import matplotlib
+    cm = matplotlib.colormaps[cmap]
+    if hi <= lo:
+        hi = lo + 1e-6
+    norm = np.clip((np.nan_to_num(valores, nan=lo) - lo) / (hi - lo), 0, 1)
+    img = (cm(norm)[..., :3] * 255).astype("uint8")
+    img[~np.isfinite(valores)] = 30
+    return img
+
+
+def vista_raster(tif_path, bounds=None, margin=15.0, max_px=1400, cmap="RdYlGn"):
+    """Vista reducida y coloreada de un raster de un indice (ndvi.tif, ...), recortada a `bounds`
+    (minx, miny, maxx, maxy) mas un margen en metros. Devuelve dict(img, transform, crs, size, vmin, vmax,
+    valores): `transform` lleva pixeles de la vista a coordenadas del mapa."""
+    import rasterio
+    from rasterio.enums import Resampling
+    from rasterio.transform import Affine
+    from rasterio.windows import Window, from_bounds
+
+    with rasterio.open(tif_path) as s:
+        if bounds is not None:
+            x0, y0, x1, y1 = bounds
+            win = from_bounds(x0 - margin, y0 - margin, x1 + margin, y1 + margin, s.transform)
+            win = win.round_offsets().round_lengths()
+        else:
+            win = Window(0, 0, s.width, s.height)
+        k = max(1.0, max(win.width, win.height) / max_px)
+        ow, oh = max(1, int(win.width / k)), max(1, int(win.height / k))
+        v = s.read(1, window=win, out_shape=(oh, ow), boundless=True, fill_value=np.nan,
+                   resampling=Resampling.average).astype("float32")
+        tr = s.window_transform(win) * Affine.scale(win.width / ow, win.height / oh)
+        crs = s.crs
+    f = v[np.isfinite(v)]
+    lo, hi = (np.percentile(f, (2, 98)) if f.size else (0.0, 1.0))
+    return dict(img=colorear(v, lo, hi, cmap), transform=tr, crs=crs, size=(ow, oh),
+                vmin=float(lo), vmax=float(hi), valores=v)
