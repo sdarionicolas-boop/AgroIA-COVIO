@@ -234,3 +234,27 @@ def test_sin_crs_da_un_mensaje_claro(tmp_path):
     gpd.GeoDataFrame({"nombre": ["A"]}, geometry=[box(0, 0, 10, 10)], crs="EPSG:32721").to_file(poly, driver="GPKG")
     with pytest.raises(ValueError, match="no tiene sistema de coordenadas"):
         lote.analizar_lotes(p, poly, str(tmp_path / "o"), log=lambda *_: None)
+
+
+def test_advierte_si_las_fallas_ocupan_demasiado_del_lote(tmp_path):
+    """Un poligono que abarca cultivo y suelo sin sembrar: la mitad del lote queda como 'falla' -> advertencia."""
+    n = 200
+    d = np.zeros((3, n, n), "uint8")
+    d[0], d[1], d[2] = 50, 150, 50
+    d[0, :, :100], d[1, :, :100], d[2, :, :100] = 150, 100, 70           # mitad izquierda: suelo desnudo
+    p = str(tmp_path / "mix.tif")
+    with rasterio.open(p, "w", driver="GTiff", width=n, height=n, count=3, dtype="uint8", crs="EPSG:32723",
+                       transform=from_origin(500000, 7000100, 0.5, 0.5)) as s:
+        s.write(d)
+    poly = str(tmp_path / "pm.gpkg")
+    gpd.GeoDataFrame({"nombre": ["mixto", "sano"]},
+                     geometry=[box(500000, 7000000, 500100, 7000100), box(500060, 7000010, 500090, 7000090)],
+                     crs="EPSG:32723").to_file(poly, driver="GPKG")
+    r = lote.analizar_lotes(p, poly, str(tmp_path / "o"), umbral=0.3, log=lambda *_: None)
+    f = r["resumen"].set_index("lote")
+    assert f.loc["mixto", "fallas_pct"] > lote.FALLAS_MAX_PCT and f.loc["sano", "fallas_pct"] == 0
+    adv = [a for a in r["advertencias"] if "fallas ocupan" in a]
+    assert len(adv) == 1 and "mixto" in adv[0] and "sano" not in adv[0]
+    assert "surcos" in adv[0]                                              # menciona el caso de cultivos en surcos
+    txt = open(os.path.join(str(tmp_path / "o"), "LEEME.txt"), encoding="utf-8").read()
+    assert "ADVERTENCIA: En mixto las fallas ocupan" in txt

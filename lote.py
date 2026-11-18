@@ -71,6 +71,7 @@ def _umbral_global(path, default=0.3):
 DESVIO_MIN = 0.10   # fraccion del rango del indice (p2-p98 del mosaico) que una celda debe apartarse de la mediana
 Z_MIN = 1.5         # y desvios robustos (MAD) respecto de las demas celdas (si hay >= 5)
 ETA_MIN = 0.7   # por debajo, la distribucion no es claramente bimodal y el umbral automatico es dudoso
+FALLAS_MAX_PCT = 40.0   # si las fallas ocupan mas de esto del lote, casi seguro el poligono o el umbral no sirven
 
 
 def _celda_auto(area_m2, px):
@@ -250,6 +251,13 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=None,
                                       if med is not None else None)
         fila["geometry"] = g
         filas.append(fila)
+        if fila["fallas_pct"] > FALLAS_MAX_PCT:
+            msg = (f"En {nombre} las fallas ocupan el {fila['fallas_pct']:.0f} % del lote ({area_f:.0f} m2). Es mucho: "
+                   "revisa que el poligono abarque un solo cultivo (sin parcelas sin sembrar, caminos u otros lotes), "
+                   "que el umbral de vegetacion sea adecuado (mira vista.png y, si hace falta, fija un umbral manual) "
+                   "y ten en cuenta que en un cultivo en surcos con poca cobertura el suelo entre surcos cuenta como falla.")
+            advertencias.append(msg)
+            log("  ADVERTENCIA: " + msg)
         log(f"  {nombre}: {g.area / 1e4:.2f} ha | {INDICES[vn][0]} {nv.mean():.2f} | {INDICES[gn][0]} {ne.mean():.2f} | "
             f"cobertura {veg.sum() / ok.sum() * 100:.0f}% | {n_f} fallas ({area_f:.0f} m2) | {len(celdas)} celdas")
     sv.close()
