@@ -21,7 +21,7 @@ import argparse
 import os
 import numpy as np
 
-from indices import INDICES, aviso_para, calcular_indices, indices_para_lotes
+from indices import INDICES, MPL_OSCURO, TEXTO_TENUE, aviso_para, calcular_indices, indices_para_lotes
 
 
 def _leeme(veg, vig, aviso):
@@ -305,25 +305,31 @@ def _vista(gdf, grilla, fallas, vigor_path, vigor_nombre, png):
         tr = s.window_transform(win)
     ext = [tr.c, tr.c + tr.a * v.shape[1], tr.f + tr.e * v.shape[0], tr.f]
     f = v[np.isfinite(v)]
+    with plt.rc_context(MPL_OSCURO):
+        return _dibujar_vista(plt, gdf, grilla, fallas, vigor_nombre, v, ext, f, col, png)
+
+
+def _dibujar_vista(plt, gdf, grilla, fallas, vigor_nombre, v, ext, f, col, png):
+    import geopandas as gpd
     fig, ax = plt.subplots(1, 2, figsize=(16, 8))
     for a in ax:
         a.imshow(v, cmap="RdYlGn", vmin=np.percentile(f, 2), vmax=np.percentile(f, 98), extent=ext)
         a.set_xticks([])
         a.set_yticks([])
     ax[0].set_title(f"{vigor_nombre} (relativo) y limite del lote")
-    gdf.boundary.plot(ax=ax[0], color="black", linewidth=1.5)
+    gdf.boundary.plot(ax=ax[0], color="#ffd400", linewidth=1.5)
     ax[1].set_title(f"Vigor por celda segun desvio de la mediana ({vigor_nombre}) y fallas")
     if grilla:
         gg = gpd.GeoDataFrame(grilla, crs=gdf.crs)
         gg.plot(ax=ax[1], color=[col[x] for x in gg["vigor"]], edgecolor="white", linewidth=0.3, alpha=0.85)
     if fallas:
-        gpd.GeoDataFrame(fallas, crs=gdf.crs).plot(ax=ax[1], color="none", edgecolor="black", linewidth=0.8)
-    gdf.boundary.plot(ax=ax[1], color="black", linewidth=1.5)
+        gpd.GeoDataFrame(fallas, crs=gdf.crs).plot(ax=ax[1], color="none", edgecolor="white", linewidth=0.8)
+    gdf.boundary.plot(ax=ax[1], color="#ffd400", linewidth=1.5)
     ax[1].set_xlim(ext[0], ext[1])
     ax[1].set_ylim(ext[2], ext[3])
     fig.tight_layout(rect=(0, 0.04, 1, 0.95))
     fig.text(0.5, 0.012, "Valores relativos: comparables solo dentro de este vuelo. Celda baja/alta = se aparta claramente de la mediana del lote.",
-             ha="center", fontsize=9, color="#444")
+             ha="center", fontsize=9, color=TEXTO_TENUE)
     fig.savefig(png, dpi=100)
     plt.close(fig)
     return png

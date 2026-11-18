@@ -114,3 +114,13 @@ def test_mapa_lote_datos_y_valores(tmp_path):
     m.v_clases.set(True)
     m._dibujar()
     root.destroy()
+
+
+def test_los_png_de_resultados_tienen_fondo_oscuro(tmp_path):
+    import cv2
+    out = _analizar(tmp_path)
+    for png in (os.path.join(out, "indices", "indices.png"), os.path.join(out, "vista.png")):
+        im = cv2.imread(png)
+        assert im is not None
+        esquinas = [im[2, 2], im[2, -3], im[-3, 2], im[-3, -3]]
+        assert all(int(c.mean()) < 60 for c in esquinas), png        # antes eran blancos (255)

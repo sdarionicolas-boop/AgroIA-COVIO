@@ -397,6 +397,13 @@ def calcular_indices(ortho_path, out_dir, log=print, block=1024, indices=None, m
     return dict(rutas=rutas, stats=stats, png=png, aviso=aviso, indices=indices)
 
 
+# colores del tema oscuro de la aplicacion (los PNG que muestra el visor no deben verse blancos)
+FONDO_OSCURO, TEXTO_CLARO, TEXTO_TENUE = "#0F1923", "#E8EDF2", "#7A8FA6"
+MPL_OSCURO = {"figure.facecolor": FONDO_OSCURO, "axes.facecolor": FONDO_OSCURO, "savefig.facecolor": FONDO_OSCURO,
+              "text.color": TEXTO_CLARO, "axes.labelcolor": TEXTO_CLARO, "xtick.color": TEXTO_CLARO,
+              "ytick.color": TEXTO_CLARO, "axes.edgecolor": "#2A3F58"}
+
+
 def _vista_previa(rutas, png, log):
     try:
         import rasterio
@@ -405,6 +412,11 @@ def _vista_previa(rutas, png, log):
         import matplotlib.pyplot as plt
     except Exception:
         return
+    with plt.rc_context(MPL_OSCURO):
+        _dibujar_vista_previa(plt, rasterio, rutas, png)
+
+
+def _dibujar_vista_previa(plt, rasterio, rutas, png):
     fig, ax = plt.subplots(1, len(rutas), figsize=(8 * len(rutas), 7), squeeze=False)
     for a, (k, p) in zip(ax[0], rutas.items()):
         with rasterio.open(p) as s:
@@ -417,7 +429,7 @@ def _vista_previa(rutas, png, log):
         fig.colorbar(im, ax=a, shrink=0.7)
     fig.tight_layout(rect=(0, 0.04, 1, 0.95))
     fig.text(0.5, 0.012, "Relativo: comparable solo dentro de este vuelo; sin calibracion verificada ni validacion de campo.",
-             ha="center", fontsize=9, color="#444")
+             ha="center", fontsize=9, color=TEXTO_TENUE)
     fig.savefig(png, dpi=100)
     plt.close(fig)
 
