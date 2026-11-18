@@ -10,7 +10,8 @@ Los indices se eligen segun las bandas del ortomosaico:
 
 Por cada poligono: estadisticas de los indices (media, desvio, p10/p90), cobertura vegetal, fallas
 (manchas de suelo o vegetacion muy baja >= --min-falla m2) y una grilla (--grid m) con el vigor relativo
-de cada celda (terciles del indice de vigor dentro del lote: baja/media/alta).
+de cada celda: el valor medio del indice de vigor y una clase (baja / normal / alta) segun cuanto se
+aparta de la mediana del lote. Un lote parejo queda casi todo "normal" (no se fuerzan clases).
 
 Los valores son RELATIVOS: sirven para comparar zonas dentro del mismo vuelo, no entre fechas. El umbral
 de vegetacion por defecto es automatico (Otsu sobre todo el mosaico); fijalo con --umbral si el
@@ -31,9 +32,11 @@ COMO LEER LOS RESULTADOS
 - Indices usados: {nv} para separar vegetacion de suelo y {ng} para el vigor relativo.
 - resumen.csv: una fila por lote (estadisticas de los indices, cobertura, fallas, celdas).
 - lote_analizado.gpkg: capas lotes, fallas y grilla (abrir en QGIS).
-- Vigor (baja/media/alta): terciles de {ng} ENTRE LAS CELDAS DEL MISMO LOTE. Siempre hay un tercio por
-  clase, aunque el lote sea parejo. Mira cv_{vig}_entre_celdas_pct: valores bajos (<10 %) indican que las
-  diferencias entre celdas son pequenas.
+- Vigor por celda: se muestra el valor medio de {ng} y una clase. Una celda es "baja" o "alta" solo si se
+  aparta de la mediana del lote al menos {int(DESVIO_MIN * 100)} % del rango del indice en todo el ortomosaico
+  Y al menos {Z_MIN} desvios robustos (MAD) respecto de las demas celdas; el resto es "normal". Un lote
+  parejo queda casi todo "normal". Los umbrales (desvio_min, z) son arbitrarios y no estan validados con
+  datos de campo. Mira tambien cv_{vig}_entre_celdas_pct (variacion entre celdas) y pct_area_baja/alta.
 - Fallas: manchas de suelo o vegetacion muy baja segun el umbral de {nv} (columna umbral_{veg}). El
   umbral automatico (Otsu) puede no ser adecuado en cultivos muy densos o muy ralos: revisa vista.png y,
   si hace falta, fija --umbral.
@@ -65,14 +68,17 @@ def _umbral_global(path, default=0.3):
     return _otsu(v) if v.size else (default, 0.0)
 
 
+DESVIO_MIN = 0.10   # fraccion del rango del indice (p2-p98 del mosaico) que una celda debe apartarse de la mediana
+Z_MIN = 1.5         # y desvios robustos (MAD) respecto de las demas celdas (si hay >= 5)
 ETA_MIN = 0.7   # por debajo, la distribucion no es claramente bimodal y el umbral automatico es dudoso
 
 
 def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
-                   umbral=None, min_falla_m2=2.0, log=print, umbral_ndvi=None, modo=None):
+                   umbral=None, min_falla_m2=2.0, log=print, umbral_ndvi=None, modo=None, desvio_min=DESVIO_MIN):
     """Analiza cada poligono del archivo. Devuelve dict con resumen (DataFrame), gpkg, png, aviso e indices.
     `modo`: 'multi' (NDVI/NDRE), 'rgb' (ExG/GLI) o None (automatico segun las bandas).
-    `umbral_ndvi` se acepta como alias antiguo de `umbral`."""
+    `desvio_min`: fraccion del rango del indice de vigor que una celda debe apartarse de la mediana del
+    lote para clasificarse baja/alta (el resto es normal). `umbral_ndvi` es un alias antiguo de `umbral`."""
     import cv2
     import pandas as pd
     import geopandas as gpd
@@ -89,6 +95,8 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
                            indices=list(dict.fromkeys([vn, gn])), modo=modo)
     rn = idx["rutas"]
     advertencias = []
+    est = idx["stats"].get(gn)
+    rango = float(est["p98"] - est["p2"]) if est else 0.0
     if umbral is not None:
         th, eta = float(umbral), None
     else:
@@ -179,12 +187,17 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
             d.update(cobertura_pct=round(float(cvg[c] / cnt[c] * 100), 1),
                      falla_m2=round(float(s_bf[c] * px ** 2), 1), geometry=inter)
             celdas.append(d)
-        q1 = q2 = None
+        med = None
+        gate = desvio_min * rango
         if len(celdas) >= 3:
             v = np.array([c[kg] for c in celdas])
-            q1, q2 = np.percentile(v, [33.3, 66.7])
+            med = float(np.median(v))
+            sig = 1.4826 * float(np.median(np.abs(v - med)))
             for c in celdas:
-                c["vigor"] = "baja" if c[kg] < q1 else ("media" if c[kg] < q2 else "alta")
+                d = c[kg] - med
+                z_ok = len(celdas) < 5 or sig <= 1e-9 or abs(d) / sig >= Z_MIN
+                c["vigor"] = ("alta" if d > 0 else "baja") if (abs(d) > max(gate, 1e-9) and z_ok) else "normal"
+                c["desvio"] = round(d, 3)
         else:
             for c in celdas:
                 c["vigor"] = "n/d"
@@ -211,8 +224,12 @@ def analizar_lotes(ortho_path, poligonos_path, out_dir, capa=None, grid_m=10.0,
                     fallas_pct=round(area_f / (ok.sum() * px ** 2) * 100, 1),
                     n_celdas=len(celdas))
         fila[f"cv_{gn}_entre_celdas_pct"] = r2(cv_cel, 1)
-        fila[f"{gn}_q33"] = r2(q1)
-        fila[f"{gn}_q67"] = r2(q2)
+        fila[f"{gn}_mediana_celdas"] = r2(med)
+        fila["desvio_min_abs"] = r2(gate) if med is not None else None
+        tot = sum(c["geometry"].area for c in celdas) or 1.0
+        for cl in ("baja", "normal", "alta"):
+            fila[f"pct_area_{cl}"] = (round(sum(c["geometry"].area for c in celdas if c["vigor"] == cl) / tot * 100, 1)
+                                      if med is not None else None)
         fila["geometry"] = g
         filas.append(fila)
         log(f"  {nombre}: {g.area / 1e4:.2f} ha | {INDICES[vn][0]} {nv.mean():.2f} | {INDICES[gn][0]} {ne.mean():.2f} | "
@@ -253,7 +270,7 @@ def _vista(gdf, grilla, fallas, vigor_path, vigor_nombre, png):
         import geopandas as gpd
     except Exception:
         return None
-    col = {"baja": "#d73027", "media": "#fee08b", "alta": "#1a9850", "n/d": "#bbbbbb"}
+    col = {"baja": "#d73027", "normal": "#e0e0e0", "alta": "#1a9850", "n/d": "#bbbbbb"}
     b = gdf.total_bounds
     m = 10
     with rasterio.open(vigor_path) as s:
@@ -269,7 +286,7 @@ def _vista(gdf, grilla, fallas, vigor_path, vigor_nombre, png):
         a.set_yticks([])
     ax[0].set_title(f"{vigor_nombre} (relativo) y limite del lote")
     gdf.boundary.plot(ax=ax[0], color="black", linewidth=1.5)
-    ax[1].set_title(f"Vigor relativo por celda (terciles de {vigor_nombre}) y fallas")
+    ax[1].set_title(f"Vigor por celda segun desvio de la mediana ({vigor_nombre}) y fallas")
     if grilla:
         gg = gpd.GeoDataFrame(grilla, crs=gdf.crs)
         gg.plot(ax=ax[1], color=[col[x] for x in gg["vigor"]], edgecolor="white", linewidth=0.3, alpha=0.85)
@@ -279,7 +296,7 @@ def _vista(gdf, grilla, fallas, vigor_path, vigor_nombre, png):
     ax[1].set_xlim(ext[0], ext[1])
     ax[1].set_ylim(ext[2], ext[3])
     fig.tight_layout(rect=(0, 0.04, 1, 0.95))
-    fig.text(0.5, 0.012, "Valores relativos: comparables solo dentro de este vuelo. Zonas por terciles: siempre hay un tercio por clase.",
+    fig.text(0.5, 0.012, "Valores relativos: comparables solo dentro de este vuelo. Celda baja/alta = se aparta claramente de la mediana del lote.",
              ha="center", fontsize=9, color="#444")
     fig.savefig(png, dpi=100)
     plt.close(fig)
@@ -296,8 +313,10 @@ if __name__ == "__main__":
     ap.add_argument("--umbral", "--umbral-ndvi", dest="umbral", type=float, default=None,
                     help="umbral del indice de vegetacion (vacio = automatico)")
     ap.add_argument("--min-falla", type=float, default=2.0, help="area minima de una falla en m2")
+    ap.add_argument("--desvio-min", type=float, default=DESVIO_MIN * 100,
+                    help="desvio minimo respecto de la mediana, en %% del rango del indice (default 10)")
     ap.add_argument("--modo", choices=("multi", "rgb"), default=None,
                     help="multi = NDVI/NDRE, rgb = ExG/GLI (por defecto: automatico segun las bandas)")
     a = ap.parse_args()
     analizar_lotes(a.tif, a.poligonos, a.salida, capa=a.capa, grid_m=a.grid,
-                   umbral=a.umbral, min_falla_m2=a.min_falla, modo=a.modo)
+                   umbral=a.umbral, min_falla_m2=a.min_falla, modo=a.modo, desvio_min=a.desvio_min / 100)

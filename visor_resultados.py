@@ -19,7 +19,9 @@ _ETIQUETAS = {
     "area_ha": "Área del polígono (ha)", "area_con_datos_ha": "Área con datos (ha)",
     "indice_vegetacion": "Índice de vegetación", "indice_vigor": "Índice de vigor",
     "cobertura_veg_pct": "Cobertura vegetal (%)", "n_fallas": "Nº de fallas",
-    "umbral_separacion": "Separación del umbral (0–1; <0,7 = dudoso)", "area_fallas_m2": "Área de fallas (m²)", "fallas_pct": "Fallas (% del lote)", "n_celdas": "Nº de celdas",
+    "umbral_separacion": "Separación del umbral (0–1; <0,7 = dudoso)",
+    "pct_area_baja": "Celdas de vigor bajo (% del área)", "pct_area_normal": "Celdas de vigor normal (% del área)",
+    "pct_area_alta": "Celdas de vigor alto (% del área)", "desvio_min_abs": "Desvío mínimo para clasificar (valor)", "area_fallas_m2": "Área de fallas (m²)", "fallas_pct": "Fallas (% del lote)", "n_celdas": "Nº de celdas",
 }
 
 
@@ -31,7 +33,7 @@ def _etiqueta(k):
             return f"Umbral {tit}"
         if k.startswith(nom + "_"):
             suf = {"medio": "media", "std": "desvío", "p10": "percentil 10", "p90": "percentil 90",
-                   "q33": "corte tercil inferior", "q67": "corte tercil superior"}.get(k[len(nom) + 1:], k[len(nom) + 1:])
+                   "mediana_celdas": "mediana entre celdas"}.get(k[len(nom) + 1:], k[len(nom) + 1:])
             return f"{tit} {suf}"
         if k == f"cv_{nom}_entre_celdas_pct":
             return f"{tit}: variación entre celdas (%)"
