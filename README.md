@@ -60,7 +60,7 @@ No hay ejecutable publicado en los releases. Podés generarlo vos con `python bu
 PlantDetector/
 ├── app.py              # Interfaz gráfica (Tkinter)
 ├── pipeline.py         # Lógica del pipeline
-├── indices.py          # NDVI/NDRE (multiespectral, experimental)
+├── indices.py          # Índices de vegetación (NDVI/NDRE multiespectral; ExG/GLI/VARI RGB)
 ├── lote.py             # Estadísticas, fallas y vigor por lote (experimental)
 ├── requirements.txt    # Dependencias Python
 ├── build_exe.py        # Script para generar el .exe
@@ -85,15 +85,56 @@ PlantDetector/
 
 ---
 
-## Módulo multiespectral (experimental)
+## Índices de vegetación (experimental)
 
-Además del conteo de plantas, el repositorio incluye herramientas para ortomosaicos multiespectrales
-(p. ej. MicaSense RedEdge-M procesado con WebODM/ODM). **Es un módulo experimental: no está validado
-con datos de campo.** Se usa desde la interfaz (botón **🛰 Índices multiespectrales**, con el ortomosaico ya
-seleccionado) o por línea de comandos.
+Además del conteo de plantas, el repositorio incluye herramientas para calcular **índices de vegetación**,
+tanto en ortomosaicos **multiespectrales** (p. ej. MicaSense RedEdge-M procesado con WebODM/ODM) como en
+ortomosaicos **RGB** comunes. **Es un módulo experimental: no está validado con datos de campo.** Se usa
+desde la interfaz (botón **🛰 Índices de vegetación**, con el ortomosaico ya seleccionado) o por línea de comandos.
+
+| Ortomosaico | Índices | Vegetación / vigor |
+|---|---|---|
+| Multiespectral (bandas NIR y Red por nombre) | NDVI y NDRE | NDVI separa vegetación de suelo; NDRE zonifica el vigor |
+| RGB común (3 o 4 bandas) | ExG, GLI y VARI | ExG separa vegetación de suelo; GLI zonifica el vigor |
+
+Los dos grupos se mantienen separados: no se mezclan índices RGB con multiespectrales.
+
+**En la interfaz** se puede, sin salir de la aplicación: dibujar los lotes con el mouse sobre el mapa (fondo RGB
+o cualquiera de los índices), calcular, y ver los resultados en un visor con el mapa del lote, los índices del
+ortomosaico, la tabla y las notas. Al terminar también quedan los archivos en la carpeta de resultados.
 
 | Herramienta | Qué hace |
 |---|---|
+| `pipeline.py` | Si el ortomosaico no es de 8 bits (p. ej. uint16 de ODM), aplica un estiramiento único (percentiles 2–98) para que todos los tiles tengan el mismo brillo. Lee R, G y B por nombre de banda. |
+| `indices.py` | Calcula los índices que corresponden a las bandas del ortomosaico: `python indices.py ORTO.tif SALIDA` |
+| `editor_lotes.py` / `lotes_io.py` | Editor para **dibujar los lotes con el mouse** (clic izquierdo = vértice, clic derecho o Enter = cerrar polígono); guarda un GeoPackage. |
+| `lote.py` | Dentro de los polígonos de lote: estadísticas, fallas y zonificación de vigor en grilla: `python lote.py ORTO.tif LOTES.gpkg SALIDA --grid 10` |
+| `visor_resultados.py` | Visor de resultados dentro de la interfaz (mapa, índices, tabla y notas). |
+
+**Cómo leer los resultados**
+- Los índices son **relativos**. Sirven para comparar zonas dentro de un mismo vuelo; no para comparar
+  fechas o vuelos distintos, ni contra valores de la bibliografía, salvo que el ortomosaico tenga
+  calibración radiométrica verificada (el archivo no permite comprobarlo).
+- Los índices **RGB** son además más sensibles a la cámara, la hora del día, las sombras y el brillo del
+  ortomosaico, y no distinguen bien vegetación verde de otras superficies verdes ni vegetación senescente.
+- La zonificación (baja/media/alta) usa terciles del índice de vigor **dentro de cada lote**: siempre hay un
+  tercio por clase, aunque el lote sea parejo. Mirá `cv_<índice>_entre_celdas_pct` en `resumen.csv`: si es
+  bajo (< 10 %), las diferencias son pequeñas.
+- Una "falla" es una mancha de suelo o vegetación muy baja según un umbral del índice de vegetación
+  (automático, Otsu, o fijado con `--umbral`). No implica falta de plantas: puede ser camino, maleza o un
+  sector senescente. Revisá `vista.png`.
+- **El umbral automático puede equivocarse.** Si la distribución del índice no es claramente bimodal (no hay
+  una población de suelo y otra de vegetación, por ejemplo un cultivo senescente o muy parejo), el programa
+  lo advierte (`umbral_separacion` < 0,7 en `resumen.csv`) y la cobertura y las fallas quedan en duda: fijá un
+  umbral manual.
+- En cultivo cerrado (plantas que se tocan) no tiene sentido contar plantas individuales; para ese caso
+  usá los índices y no el conteo.
+
+**Opciones de WebODM sugeridas** (sin validar con un reprocesado completo): `orthophoto-resolution` 1.5 cm/px,
+`radiometric-calibration: camera`, `auto-boundary: false`, `crop: 0`, `skip-3dmodel: true`. Si el
+ortomosaico sale con parte del lote sin cubrir, revisá primero `auto-boundary` y `crop`.
+
+---|---|
 | `pipeline.py` | Si el ortomosaico no es de 8 bits (p. ej. uint16 de ODM), aplica un estiramiento único (percentiles 2–98) para que todos los tiles tengan el mismo brillo. Lee R, G y B por nombre de banda. |
 | `indices.py` | Calcula NDVI (NIR, Red) y NDRE (NIR, RedEdge): `python indices.py ORTO.tif SALIDA` |
 | `editor_lotes.py` / `lotes_io.py` | Editor para **dibujar los lotes con el mouse** sobre el mapa (fondo RGB, NDVI o NDRE) desde el botón 🛰 de la interfaz; guarda un GeoPackage. Clic izquierdo = vértice, clic derecho o Enter = cerrar polígono. |

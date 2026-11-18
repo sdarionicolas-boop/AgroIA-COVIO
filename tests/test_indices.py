@@ -34,8 +34,51 @@ def test_rgb_simple_cae_a_123(tmp_path):
         d.write(np.ones((3, 4, 4), "uint8"))
     with rasterio.open(p) as s:
         assert indices.bandas_rgb(s) == (1, 2, 3)
+        assert indices.indices_disponibles(indices.detectar_bandas(s)) == ["exg", "gli", "vari"]
+
+
+def test_multiespectral_y_rgb_no_se_mezclan():
+    assert indices.indices_disponibles(dict(red=1, green=2, blue=3, nir=4, rededge=5)) == ["ndvi", "ndre"]
+    assert indices.indices_disponibles(dict(red=1, nir=2)) == ["ndvi"]
+    assert indices.indices_disponibles(dict(red=1, green=2, blue=3)) == ["exg", "gli", "vari"]
+    assert indices.indices_disponibles(dict(red=1)) == []
+    assert indices.roles(["ndvi", "ndre"]) == ("ndvi", "ndre")
+    assert indices.roles(["ndvi"]) == ("ndvi", "ndvi")
+    assert indices.roles(["exg", "gli", "vari"]) == ("exg", "gli")
+    assert "RGB" in indices.aviso_para(["exg"]) and "calibracion" in indices.aviso_para(["ndvi"])
+
+
+def test_formulas_rgb_valores_conocidos():
+    z = lambda v: np.array([[v]], "float32")
+    ok = np.array([[True]])
+    verde = dict(red=z(50), green=z(150), blue=z(50))      # vegetacion
+    suelo = dict(red=z(150), green=z(100), blue=z(70))     # suelo marron
+    assert indices.formula("exg", verde, ok)[0, 0] == pytest.approx((300 - 100) / 250)     # 0.8
+    assert indices.formula("exg", suelo, ok)[0, 0] == pytest.approx((200 - 220) / 320)     # < 0
+    assert indices.formula("gli", verde, ok)[0, 0] == pytest.approx(200 / 400)
+    assert indices.formula("vari", verde, ok)[0, 0] == pytest.approx(100 / 150)
+    # sin dato -> NaN
+    assert np.isnan(indices.formula("exg", verde, np.array([[False]]))[0, 0])
+    # el ExG normalizado no depende del brillo global
+    doble = {k: v * 2 for k, v in verde.items()}
+    assert indices.formula("exg", doble, ok)[0, 0] == pytest.approx(indices.formula("exg", verde, ok)[0, 0])
+
+
+def test_calcular_indices_rgb(tmp_path):
+    p = str(tmp_path / "rgb.tif")
+    d = np.zeros((3, 20, 20), "uint8")
+    d[0], d[1], d[2] = 50, 150, 50
+    d[:, :10, :10] = 0                                       # esquina sin dato (negro)
+    with rasterio.open(p, "w", driver="GTiff", width=20, height=20, count=3, dtype="uint8") as s:
+        s.write(d)
+    r = indices.calcular_indices(p, str(tmp_path / "o"), log=lambda *_: None)
+    assert r["indices"] == ["exg", "gli", "vari"] and "RGB" in r["aviso"]
+    with rasterio.open(r["rutas"]["exg"]) as s:
+        v = s.read(1)
+    assert v[15, 15] == pytest.approx(0.8) and np.isnan(v[0, 0])
+    assert os.path.exists(os.path.join(str(tmp_path / "o"), "indices_stats.csv"))
     with pytest.raises(ValueError):
-        indices.calcular_indices(p, str(tmp_path / "o"))
+        indices.calcular_indices(p, str(tmp_path / "o2"), indices=["ndvi"], log=lambda *_: None)
 
 
 def test_ndvi_ndre_valores_y_nodata(tmp_path):
