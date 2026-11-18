@@ -442,6 +442,38 @@ class CovioApp(tk.Tk):
                           "Para ortomosaicos RGB comunes (3 bandas visibles).\n"
                           "Calcula ExG, GLI y VARI; son más sensibles a la cámara y la iluminación. Experimental.")
 
+    def _asegurar_bandas(self, forzar=False, origen=None):
+        """Si el ortomosaico tiene bandas sin nombre (o `forzar`), abre la ventana para asignarlas. True si queda
+        una asignacion valida o no hacia falta."""
+        ortho = self.ortho_path.get()
+        if not ortho or not os.path.exists(ortho):
+            return True
+        try:
+            import rasterio
+            from indices import necesita_asignacion
+            with rasterio.open(ortho) as src:
+                falta = necesita_asignacion(src)
+        except Exception:
+            return True
+        if not (falta or forzar):
+            return True
+        from asignar_bandas import AsignarBandas
+        dlg = AsignarBandas(self, ortho, colors=dict(bg=BG_DARK, card=BG_CARD2, text=TEXT_MAIN, muted=TEXT_MUTED,
+                                                     accent=ACCENT, accent2=ACCENT2, warn=TEXT_WARN))
+        self.wait_window(dlg)
+        if dlg.result is None:
+            if origen == "elegir":
+                self._log("  Bandas sin asignar: los índices y el conteo no sabrán cuál es cada banda. "
+                          "Podés asignarlas más tarde desde el botón de índices ('Bandas…').", "warn")
+            return False
+        self._log("  Bandas asignadas: " + ", ".join(f"{k}={v}" for k, v in sorted(dlg.result.items(), key=lambda kv: kv[1])), "ok")
+        return True
+
+    def _reasignar_bandas(self, dlg, modo):
+        if self._asegurar_bandas(forzar=True):
+            dlg.destroy()
+            self._open_indices_dialog(modo)
+
     def _open_indices_dialog(self, modo="multi"):
         self._idx_modo = modo
         if self._lote_placeholder or not self.lote_entry.get().strip():
@@ -451,6 +483,8 @@ class CovioApp(tk.Tk):
         ortho = self.ortho_path.get()
         if not ortho or not os.path.exists(ortho):
             messagebox.showerror("Error", "Primero seleccioná un ortomosaico GeoTIFF.")
+            return
+        if not self._asegurar_bandas():
             return
         try:
             import rasterio
@@ -467,7 +501,8 @@ class CovioApp(tk.Tk):
                 else:
                     messagebox.showerror(
                         "Bandas RGB no encontradas",
-                        "No se encontraron las bandas R, G y B en este ortomosaico (3 bandas, o con nombre).")
+                        "No se encontraron las bandas R, G y B en este ortomosaico (3 bandas, o con nombre).\n"
+                        "Si tiene bandas sin nombre, asignalas desde el botón 'Bandas…' del diálogo de índices.")
                 return
             multi = modo == "multi"
             veg_n, _vig_n = roles(disp)
@@ -482,6 +517,8 @@ class CovioApp(tk.Tk):
         dlg.geometry("560x540")
         dlg.transient(self)
 
+        tk.Button(dlg, text="Bandas…", font=FONT_BODY, bg=BG_CARD2, fg=TEXT_MUTED, relief="flat", bd=0, cursor="hand2",
+                  padx=10, pady=3, command=lambda: self._reasignar_bandas(dlg, modo)).place(relx=1.0, x=-14, y=14, anchor="ne")
         self.poly_path = tk.StringVar(value="")
         self.idx_grid = tk.StringVar(value="10")
         self.idx_umbral = tk.StringVar(value="")
@@ -851,15 +888,20 @@ class CovioApp(tk.Tk):
                         self._log(f"  GSD real detectado del raster: {actual_gsd_cm:.3f} cm/px (CRS: {crs})", "ok")
                     else:
                         self._log(f"  CRS geográfico o indefinido detectado. Por favor, verificar el GSD manualmente.", "warn")
-                    from indices import detectar_bandas
+                    from indices import detectar_bandas, necesita_asignacion
+                    sin_nombre = necesita_asignacion(src)
                     _b = detectar_bandas(src)
-                    if "nir" in _b:
+                    if sin_nombre:
+                        self._log(f"  El ortomosaico tiene {src.count} bandas sin nombre: hay que indicar cuál es cada una.", "warn")
+                    elif "nir" in _b:
                         self._log("  Ortomosaico multiespectral detectado (NIR"
                                   + (" y RedEdge" if "rededge" in _b else "") + "). "
                                   "El conteo usa solo R, G y B; para NDVI/NDRE usá el botón 'Índices multiespectrales'.", "ok")
                     elif all(k in _b for k in ("red", "green", "blue")):
                         self._log("  Ortomosaico RGB: además del conteo, el botón 'Índices RGB' "
                                   "calcula ExG, GLI y VARI.", "muted")
+                if sin_nombre:
+                    self.after(100, lambda: self._asegurar_bandas(origen="elegir"))
             except Exception as e:
                 self._log(f"  No se pudo auto-detectar el GSD: {e}", "muted")
 

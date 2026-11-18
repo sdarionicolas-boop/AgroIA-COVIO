@@ -101,6 +101,14 @@ desde la interfaz, con el ortomosaico ya seleccionado, usando uno de los dos bot
 
 Los dos grupos se mantienen separados: no se mezclan índices RGB con multiespectrales.
 
+**Ortomosaicos con bandas sin nombre.** Muchos GeoTIFF multiespectrales (p. ej. exportados por Pix4D o Metashape)
+traen 5 bandas sin descripción, y el programa no puede saber cuál es el rojo o el NIR. Al elegir uno, la aplicación
+abre una ventana para **asignar las bandas** con una sugerencia basada en los valores medios de cada banda (en
+vegetación el NIR es la banda más alta); si no estás seguro del orden, confirmalo con quien procesó el ortomosaico.
+La asignación se recuerda para ese archivo (se guarda en la carpeta de configuración del usuario, no junto a los
+datos), se puede cambiar desde el botón **Bandas…** del diálogo de índices y también la usa el conteo para leer R, G
+y B en el orden correcto. Un archivo llamado "RGB" puede ser en realidad multiespectral.
+
 **En la interfaz** se puede, sin salir de la aplicación: dibujar los lotes con el mouse sobre el mapa (fondo RGB
 o cualquiera de los índices), calcular, y ver los resultados en un visor con el mapa del lote, los índices del
 ortomosaico, la tabla y las notas. El mapa del lote es interactivo: zoom con la rueda, desplazar arrastrando,

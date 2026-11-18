@@ -49,9 +49,91 @@ _ALIAS = {
 }
 
 
-def detectar_bandas(src):
-    """Devuelve {'red': 1, 'green': 2, ...} (indices 1-based) segun las descripciones del raster.
-    Sin descripciones: 3 bandas = RGB, 4 = RGB+alpha; con mas bandas no se asume nada (dict vacio)."""
+# ── asignacion manual de bandas (ortomosaicos sin nombres de banda) ──────────────────────────
+ROLES = ("red", "green", "blue", "nir", "rededge", "alpha")
+ROLES_ES = {"red": "Rojo", "green": "Verde", "blue": "Azul", "nir": "NIR", "rededge": "RedEdge", "alpha": "Alpha (transparencia)"}
+
+# sugerencias para ortomosaicos sin nombres de banda: nombre -> {rol: banda}
+PRESETS = {
+    "Azul, Verde, Rojo, RedEdge, NIR (orden por longitud de onda)": dict(blue=1, green=2, red=3, rededge=4, nir=5),
+    "Azul, Verde, Rojo, NIR, RedEdge (orden MicaSense)": dict(blue=1, green=2, red=3, nir=4, rededge=5),
+    "Rojo, Verde, Azul, NIR": dict(red=1, green=2, blue=3, nir=4),
+    "Rojo, Verde, Azul": dict(red=1, green=2, blue=3),
+}
+
+_ASIGNADAS = {}          # clave de archivo -> {rol: banda} (sesion actual)
+_CONFIG_CARGADA = False
+
+
+def _clave(path):
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+def _config_path():
+    base = os.environ.get("AGROIA_CONFIG_DIR") or os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"),
+                                                                 "AgroIA-COVIO")
+    return os.path.join(base, "bandas.json")
+
+
+def _leer_config():
+    import json
+    try:
+        with open(_config_path(), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def registrar_bandas(path, mapeo, guardar=True):
+    """Fija que banda es cada rol ({'red': 3, 'nir': 5, ...}) para un ortomosaico y, si `guardar`, lo recuerda
+    entre sesiones (en la carpeta de configuracion del usuario, no junto a los datos)."""
+    import json
+    mapeo = {k: int(v) for k, v in mapeo.items() if k in ROLES}
+    if len(set(mapeo.values())) != len(mapeo):
+        raise ValueError("Una misma banda no puede tener dos roles.")
+    _ASIGNADAS[_clave(path)] = mapeo
+    if guardar:
+        cfg = _leer_config()
+        try:
+            cfg[_clave(path)] = dict(size=os.path.getsize(path), bandas=mapeo)
+            os.makedirs(os.path.dirname(_config_path()), exist_ok=True)
+            with open(_config_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=1)
+        except OSError:
+            pass          # no poder guardar no impide usar la asignacion en esta sesion
+    return mapeo
+
+
+def bandas_registradas(path):
+    """Asignacion guardada para este archivo (sesion o configuracion del usuario), o None."""
+    k = _clave(path)
+    if k in _ASIGNADAS:
+        return dict(_ASIGNADAS[k])
+    reg = _leer_config().get(k)
+    try:
+        if reg and int(reg.get("size", -1)) == os.path.getsize(path):      # si el archivo cambio, se descarta
+            _ASIGNADAS[k] = {r: int(b) for r, b in reg["bandas"].items() if r in ROLES}
+            return dict(_ASIGNADAS[k])
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return None
+
+
+def olvidar_bandas(path):
+    import json
+    _ASIGNADAS.pop(_clave(path), None)
+    cfg = _leer_config()
+    if cfg.pop(_clave(path), None) is not None:
+        try:
+            with open(_config_path(), "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=1)
+        except OSError:
+            pass
+
+
+def _detectar_auto(src):
+    """Deteccion automatica: por descripcion de banda (como las escribe ODM/WebODM) y colorinterp.
+    Sin descripciones: 3 bandas = RGB, 4 = RGB+alpha; con mas bandas no se asume nada."""
     bandas = {}
     for i, d in enumerate(src.descriptions, start=1):
         if d:
@@ -70,6 +152,52 @@ def detectar_bandas(src):
             if src.count == 4:
                 bandas.setdefault("alpha", 4)
     return bandas
+
+
+def detectar_bandas(src):
+    """Devuelve {'red': 1, 'green': 2, ...} (indices 1-based). Usa primero la asignacion manual guardada para
+    ese archivo (registrar_bandas); si no hay, la deteccion automatica."""
+    reg = bandas_registradas(src.name) if getattr(src, "name", None) else None
+    return reg if reg else _detectar_auto(src)
+
+
+def necesita_asignacion(src):
+    """True si el ortomosaico tiene bandas sin nombre que no se pueden interpretar solas (mas de 4 bandas, o 4 sin
+    alpha) y todavia no hay una asignacion guardada: hay que preguntarle al usuario cual es cada banda."""
+    if getattr(src, "name", None) and bandas_registradas(src.name):
+        return False
+    nombradas = _detectar_auto(src)
+    if any(k in nombradas for k in ("red", "green", "blue", "nir", "rededge")) and \
+            any(d for d in src.descriptions):
+        return False                                      # tiene nombres de banda reconocibles
+    tiene_alpha = any(ci.name == "alpha" for ci in src.colorinterp)
+    return src.count >= 5 or (src.count == 4 and not tiene_alpha)
+
+
+def sugerir_asignacion(path, max_px=900):
+    """(nombre_preset, mapeo, medias): propone una asignacion para un ortomosaico sin nombres de banda mirando
+    el valor medio de cada banda (en vegetacion el NIR es la banda mas alta y el rojo es bajo)."""
+    import rasterio
+    with rasterio.open(path) as s:
+        k = max(1.0, max(s.width, s.height) / max_px)
+        d = s.read(out_shape=(s.count, max(1, int(s.height / k)), max(1, int(s.width / k)))).astype("float64")
+        nd = s.nodata
+        n = s.count
+    ok = np.ones(d.shape[1:], bool)
+    for i in range(n):
+        ok &= d[i] > 0
+        if nd is not None:
+            ok &= d[i] != nd
+    medias = [float(d[i][ok].mean()) if ok.any() else 0.0 for i in range(n)]
+    nombres = list(PRESETS)
+    if n == 5:
+        # orden por longitud de onda si el NIR (banda 5) supera al borde rojo (banda 4); si no, orden MicaSense
+        elegido = nombres[0] if medias[4] >= medias[3] else nombres[1]
+    elif n == 4:
+        elegido = nombres[2]
+    else:
+        elegido = nombres[3] if n == 3 else None
+    return elegido, (dict(PRESETS[elegido]) if elegido else {}), medias
 
 
 def bandas_rgb(src):
